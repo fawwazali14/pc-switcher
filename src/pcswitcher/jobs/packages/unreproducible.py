@@ -746,7 +746,7 @@ class UnreproducibleSyncJob(PackageSyncJob):
                     action=UNREPRODUCIBLE_REVIEW_ACTION,
                     title=(
                         f"{self.machines.source} has {self.item_noun_plural} that no package manager can put on "
-                        f"{self.machines.target}?"
+                        f"{self.machines.target}"
                     ),
                     item_noun=self.item_noun,
                     entries=tuple(

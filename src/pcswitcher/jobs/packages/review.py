@@ -417,7 +417,11 @@ def change_title(verb: str, noun: str, target: str) -> str:
     A per-item title passes `f"{singular noun} {label}"` as the noun.
 
     Report-only groups do not come through here: they announce a condition rather than ask
-    about a change, so they take no machine and no question mark.
+    about a change, so they take no machine and no question mark. That is the rule for every
+    title in the package review, wherever it is built — a title asking the user to decide
+    about a change ends in `?` (here), and so does a genuine wh-question ("Who put X on
+    atlas?"); a title stating a finding or a condition does not, however question-shaped the
+    sentence looks.
     """
     return f"{verb.capitalize()} {noun} {'from' if verb in _TAKES_FROM else 'on'} {target}?"
 

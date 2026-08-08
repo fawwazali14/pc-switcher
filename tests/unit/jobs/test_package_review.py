@@ -134,7 +134,7 @@ def _unreproducible_group(entries: Sequence[ReviewEntry]) -> ReviewGroup:
     return ReviewGroup(
         manager="manual_deb",
         action=UNREPRODUCIBLE_REVIEW_ACTION,
-        title="atlas has manual debs that no package manager can put on nomad?",
+        title="atlas has manual debs that no package manager can put on nomad",
         item_noun="manual deb",
         entries=tuple(entries),
     )

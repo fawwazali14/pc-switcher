@@ -221,7 +221,7 @@ class TestGroupsNeverOfferedPermanence:
             UNREPRODUCIBLE_REVIEW_ACTION,
             [_entry("u1", label="brscan3")],
             manager="manual_deb",
-            title="atlas has manual debs that no package manager can put on nomad?",
+            title="atlas has manual debs that no package manager can put on nomad",
             item_noun="manual deb",
         )
         screen = _fake_prompt(ask_return={"u1": "skip_once"})

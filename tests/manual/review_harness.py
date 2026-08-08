@@ -238,7 +238,7 @@ GROUPS = [
     ReviewGroup(
         "manual",
         UNREPRODUCIBLE_REVIEW_ACTION,
-        f"{SOURCE_HOST} has manually installed apps that no package manager can put on {TARGET_HOST}?",
+        f"{SOURCE_HOST} has manually installed apps that no package manager can put on {TARGET_HOST}",
         [
             ReviewEntry("unreproducible:unowned-path:/opt/pcsw-uat-app", "/opt/pcsw-uat-app", "resolve"),
             ReviewEntry("unreproducible:unowned-path:/usr/local/bin/mytool", "/usr/local/bin/mytool", "resolve"),
