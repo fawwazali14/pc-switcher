@@ -19,18 +19,18 @@ The system implements a six-level logging hierarchy (DEBUG, FULL, INFO, WARNING,
 
 **Acceptance Scenarios**:
 
-1. **Given** user configures `logging.file: FULL` and `logging.tui: INFO`, **When** sync runs and a job logs at DEBUG level, **Then** the message does NOT appear in the log file nor in the terminal UI (DEBUG is excluded by FULL)
+- **LOG-US-SYSTEM-AS1**: **Given** user configures `logging.file: FULL` and `logging.tui: INFO`, **When** sync runs and a job logs at DEBUG level, **Then** the message does NOT appear in the log file nor in the terminal UI (DEBUG is excluded by FULL)
 
-2. **Given** user configures `logging.file: INFO`, **When** sync runs and a job logs at FULL level (e.g., "Copying /home/user/file.txt"), **Then** the message does not appear in either log file or terminal UI
+- **LOG-US-SYSTEM-AS2**: **Given** user configures `logging.file: INFO`, **When** sync runs and a job logs at FULL level (e.g., "Copying /home/user/file.txt"), **Then** the message does not appear in either log file or terminal UI
 
-3. *(Removed)*
+- **LOG-US-SYSTEM-AS3**: *(Removed)*
 
-4. **Given** sync operation completes, **When** user inspects log file at `~/.local/share/pc-switcher/logs/sync-<timestamp>-<session_id>.log`, **Then** the file contains structured log entries in JSON Lines format (one JSON object per line) with fields: timestamp (ISO8601), level, event, plus `job` and `host` (`"source"`/`"target"`) when the call supplied them, plus additional context fields as needed, for all operations from both source and target machines. The hostname mapping (source hostname and target hostname) is logged once at session start, not in every entry.  
-   Lineage: 001-US-4-AS-4 → #140
+- **LOG-US-SYSTEM-AS4**: **Given** sync operation completes, **When** user inspects log file at `~/.local/share/pc-switcher/logs/sync-<timestamp>-<session_id>.log`, **Then** the file contains structured log entries in JSON Lines format (one JSON object per line) with fields: timestamp (ISO8601), level, event, plus `job` and `host` (`"source"`/`"target"`) when the call supplied them, plus additional context fields as needed, for all operations from both source and target machines. The hostname mapping (source hostname and target hostname) is logged once at session start, not in every entry.  
+  Lineage: 001-US-4-AS-4 → #140
 
-5. *(Removed - target-side logging is Job implementation detail, not a spec-level concern)*
+- **LOG-US-SYSTEM-AS5**: *(Removed - target-side logging is Job implementation detail, not a spec-level concern)*
 
-6. **Given** user runs `pc-switcher logs --last`, **When** command executes, **Then** the system displays the most recent sync log file in the terminal using rich console with syntax highlighting for improved readability
+- **LOG-US-SYSTEM-AS6**: **Given** user runs `pc-switcher logs --last`, **When** command executes, **Then** the system displays the most recent sync log file in the terminal using rich console with syntax highlighting for improved readability
 
 ### Configure Log Levels in Config File (LOG-US-CONFIG)
 
@@ -42,9 +42,9 @@ As a pc-switcher user, I want to specify log levels in my configuration file so 
 
 **Acceptance Scenarios**:
 
-1. **Given** a config file with `logging.file` level set to `DEBUG` and `logging.tui` level set to `INFO`, **When** I run a sync, **Then** the log file contains debug messages but the TUI only shows info and above.
-2. **Given** a config file with `logging.external` level set to `WARNING`, **When** asyncssh logs an INFO message, **Then** that message is not displayed in TUI or written to the log file (regardless of `file`/`tui` settings).
-3. **Given** `logging.file: DEBUG`, `logging.tui: INFO`, `logging.external: WARNING`, **When** pcswitcher logs a DEBUG message, **Then** it appears in the file but not in the TUI.
+- **LOG-US-CONFIG-AS1**: **Given** a config file with `logging.file` level set to `DEBUG` and `logging.tui` level set to `INFO`, **When** I run a sync, **Then** the log file contains debug messages but the TUI only shows info and above.
+- **LOG-US-CONFIG-AS2**: **Given** a config file with `logging.external` level set to `WARNING`, **When** asyncssh logs an INFO message, **Then** that message is not displayed in TUI or written to the log file (regardless of `file`/`tui` settings).
+- **LOG-US-CONFIG-AS3**: **Given** `logging.file: DEBUG`, `logging.tui: INFO`, `logging.external: WARNING`, **When** pcswitcher logs a DEBUG message, **Then** it appears in the file but not in the TUI.
 
 ### View External Library Logs (LOG-US-EXTERNAL)
 
@@ -56,9 +56,9 @@ As a pc-switcher user, I want to see log messages from external libraries (e.g. 
 
 **Acceptance Scenarios**:
 
-1. **Given** asyncssh emits a WARNING log, **When** `logging.external` is set to WARNING or lower, **Then** the message appears in outputs that meet both the `external` level and their respective `file`/`tui` levels.
-2. **Given** `logging.external` is set to ERROR, **When** asyncssh emits a WARNING, **Then** the message does not appear in either file or TUI.
-3. **Given** `logging.external: INFO`, `logging.file: DEBUG`, `logging.tui: WARNING`, **When** asyncssh emits an INFO, **Then** it appears in the file but not in the TUI.
+- **LOG-US-EXTERNAL-AS1**: **Given** asyncssh emits a WARNING log, **When** `logging.external` is set to WARNING or lower, **Then** the message appears in outputs that meet both the `external` level and their respective `file`/`tui` levels.
+- **LOG-US-EXTERNAL-AS2**: **Given** `logging.external` is set to ERROR, **When** asyncssh emits a WARNING, **Then** the message does not appear in either file or TUI.
+- **LOG-US-EXTERNAL-AS3**: **Given** `logging.external: INFO`, `logging.file: DEBUG`, `logging.tui: WARNING`, **When** asyncssh emits an INFO, **Then** it appears in the file but not in the TUI.
 
 ### Migrate Internal Logging to Standard Library (LOG-US-STDLIB)
 
@@ -70,9 +70,9 @@ As a developer, I want pc-switcher's internal logging to use Python's standard `
 
 **Acceptance Scenarios**:
 
-1. **Given** a module holds a `logging.getLogger("pcswitcher...")`, **When** it logs a message, **Then** the message goes through Python's logging infrastructure — there is no pc-switcher logger class.
-2. **Given** a module is configured with a specific log level, **When** that module logs a message below its threshold, **Then** the message is filtered out.
-3. **Given** different handlers (file, TUI) have different levels, **When** a message is logged, **Then** each handler applies its own filter.
+- **LOG-US-STDLIB-AS1**: **Given** a module holds a `logging.getLogger("pcswitcher...")`, **When** it logs a message, **Then** the message goes through Python's logging infrastructure — there is no pc-switcher logger class.
+- **LOG-US-STDLIB-AS2**: **Given** a module is configured with a specific log level, **When** that module logs a message below its threshold, **Then** the message is filtered out.
+- **LOG-US-STDLIB-AS3**: **Given** different handlers (file, TUI) have different levels, **When** a message is logged, **Then** each handler applies its own filter.
 
 ### Log Format and Features (LOG-US-PRESERVE)
 
@@ -84,9 +84,9 @@ As a pc-switcher user, I want TUI and file log output to carry timestamps, colou
 
 **Acceptance Scenarios**:
 
-1. **Given** a log event with structured context (e.g., `file=/path/to/file`), **When** written to file, **Then** it includes the same JSON structure as before.
-2. **Given** a log event at ERROR level, **When** displayed on the stderr fallback handler, **Then** it is coloured red.
-3. **Given** a log event with host/job context, **When** displayed, **Then** the format is `HH:MM:SS [LEVEL   ] [job] (host) message key=value` on the stderr fallback and `HH:MM:SS [LEVEL] [job] (host) message` in the interactive UI's log panel.
+- **LOG-US-PRESERVE-AS1**: **Given** a log event with structured context (e.g., `file=/path/to/file`), **When** written to file, **Then** it includes the same JSON structure as before.
+- **LOG-US-PRESERVE-AS2**: **Given** a log event at ERROR level, **When** displayed on the stderr fallback handler, **Then** it is coloured red.
+- **LOG-US-PRESERVE-AS3**: **Given** a log event with host/job context, **When** displayed, **Then** the format is `HH:MM:SS [LEVEL   ] [job] (host) message key=value` on the stderr fallback and `HH:MM:SS [LEVEL] [job] (host) message` in the interactive UI's log panel.
 
 ### Edge Cases
 

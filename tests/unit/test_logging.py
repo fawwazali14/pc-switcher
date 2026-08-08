@@ -594,7 +594,7 @@ class TestAcceptanceScenarios:
     """
 
     def test_log_us_config_scenario2_external_warning_filters_asyncssh_info(self) -> None:
-        """LOG-US-CONFIG Scenario 2: external=WARNING filters asyncssh INFO from both outputs.
+        """LOG-US-CONFIG-AS2: external=WARNING filters asyncssh INFO from both outputs.
 
         Given external: WARNING,
         When asyncssh logs an INFO message,
@@ -642,7 +642,7 @@ class TestAcceptanceScenarios:
                     listener.stop()
 
     def test_log_us_config_scenario3_pcswitcher_debug_in_file_not_tui(self) -> None:
-        """LOG-US-CONFIG Scenario 3: pcswitcher DEBUG appears in file but NOT in TUI.
+        """LOG-US-CONFIG-AS3: pcswitcher DEBUG appears in file but NOT in TUI.
 
         Given file: DEBUG, tui: INFO, external: WARNING,
         When pcswitcher logs a DEBUG message,
@@ -688,7 +688,7 @@ class TestAcceptanceScenarios:
                     listener.stop()
 
     def test_log_us_external_scenario3_asyncssh_info_in_file_not_tui(self) -> None:
-        """LOG-US-EXTERNAL Scenario 3: asyncssh INFO appears in file but NOT in TUI.
+        """LOG-US-EXTERNAL-AS3: asyncssh INFO appears in file but NOT in TUI.
 
         Given external: INFO, file: DEBUG, tui: WARNING,
         When asyncssh emits an INFO,
