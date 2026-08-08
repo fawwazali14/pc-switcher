@@ -145,7 +145,7 @@ from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import questionary
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
@@ -332,6 +332,27 @@ def _display_handed_over(ui: PausableUI, *, for_a_question: bool) -> Generator[N
         ui.resume()
 
 
+async def _ask(prompt: questionary.Question, *, console: Console) -> Any:
+    """Put one question and return whatever its widget answers.
+
+    Every question in this module goes through here, which is what makes the blank line in
+    FRONT of a question a property of asking rather than of each screen remembering to print
+    one (#287). It used to come from a bare `console.print()` at whichever sites happened to
+    have one, so two questions of the same job ran together — the install editor and the
+    version editor for one item, printed with nothing between them.
+
+    Nothing else in this module prints a bare blank line before a question, so the
+    separation cannot double: a screen's own heading owns the blank in front of ITSELF, and
+    the evidence between that heading and the question keeps the two apart.
+
+    The blocking widget runs off the event loop (ADR-005) exactly as it did at each site.
+    `Any` because that is what `questionary.Question.ask` returns and what the four widget
+    kinds here disagree about; every caller annotates its own result.
+    """
+    console.print()
+    return await asyncio.to_thread(prompt.ask)
+
+
 @dataclass(frozen=True)
 class ReviewEntry:
     """One item awaiting a decision inside a `ReviewGroup`.
@@ -401,14 +422,17 @@ def change_title(verb: str, noun: str, target: str) -> str:
     return f"{verb.capitalize()} {noun} {'from' if verb in _TAKES_FROM else 'on'} {target}?"
 
 
-def version_mismatch_title(noun: str, label: str, source: str, target: str) -> str:
+def version_mismatch_title(label: str, source: str, target: str) -> str:
     """The per-item title for one thing both machines have at different versions.
 
     Names both machines rather than the target alone: which version wins is the whole
     question, and "pc2 has a different version" left the user to work out what it would be
     changed to.
+
+    No noun: the heading above the recorded snippet names what the item is, and a title
+    repeating it said the same word twice on one screen.
     """
-    return f"{source} and {target} have different versions of {noun} {label} — update it on {target}?"
+    return f"{source} and {target} have different versions of {label} — update it on {target}?"
 
 
 @dataclass(frozen=True)
@@ -1234,6 +1258,7 @@ def _retry_options(target_hostname: str) -> tuple[DecisionOption, ...]:
 async def _ask_about_one_item(  # noqa: PLR0913 - one decision screen's content; all but the entry keyword-only
     entry: ReviewEntry,
     *,
+    console: Console,
     title: str,
     options: Sequence[DecisionOption],
     default: str,
@@ -1269,17 +1294,22 @@ async def _ask_about_one_item(  # noqa: PLR0913 - one decision screen's content;
         options=options,
         explanation=explanation,
     )
-    answered: Mapping[str, str] | None = await asyncio.to_thread(prompt.ask)
+    answered: Mapping[str, str] | None = await _ask(prompt, console=console)
     if answered is None:
         raise SyncAbortedByUser(f"package review aborted at {entry.label!r} (Ctrl-C)")
     return answered[entry.item_id]
 
 
-async def _capture_body(title: str, note: str, existing: str, *, console: Console) -> str:
+async def _capture_body(prompt_text: str, *, record_title: str, note: str, existing: str, console: Console) -> str:
     """Open one editor, print what it captured, and return it stripped.
 
+    `prompt_text` INSTRUCTS — it is the line the user reads with an empty buffer in front of
+    them, and it has to say what to type (#287). `record_title` LABELS the block left in the
+    scrollback afterwards, where an instruction would be a leftover imperative over a body
+    that is already written.
+
     The editor is erased whole when it closes (`erase_when_done`) and this reprints the
-    result as the review's own block: the title, then the body full width under it. Two
+    result as the review's own block: the label, then the body full width under it. Two
     findings meet in that one flag. The authoring note and the finish marker are questionary's
     to draw and were the review's only screen that left its own instructions in the scrollback
     (#236); the body was echoed in the narrow column to the right of the title, wrapping shell
@@ -1302,7 +1332,7 @@ async def _capture_body(title: str, note: str, existing: str, *, console: Consol
     user typed as part of the command, and they change nothing about what `bash -c` runs.
     """
     prompt = questionary.text(
-        f"{title}:",
+        prompt_text,
         multiline=True,
         default=existing,
         instruction=_snippet_instruction(note),
@@ -1310,10 +1340,10 @@ async def _capture_body(title: str, note: str, existing: str, *, console: Consol
         style=_SNIPPET_STYLE,
         erase_when_done=True,
     )
-    captured: str | None = await asyncio.to_thread(prompt.ask)
+    captured: str | None = await _ask(prompt, console=console)
     body = captured.strip() if captured else ""
     if body:
-        console.print(_snippet_record(title, body))
+        console.print(_snippet_record(record_title, body))
     return body
 
 
@@ -1351,9 +1381,10 @@ async def _capture_bodies(
     would replay as nothing at all.
     """
     install_body = await _capture_body(
-        f"Install-or-update snippet for {entry.label}",
-        _snippet_authoring_note(target_hostname),
-        recorded.install_body if recorded else "",
+        f"Enter the commands that install or update {entry.label} on {target_hostname}:",
+        record_title=f"Install-or-update snippet for {entry.label}",
+        note=_snippet_authoring_note(target_hostname),
+        existing=recorded.install_body if recorded else "",
         console=console,
     )
     if not install_body:
@@ -1361,9 +1392,10 @@ async def _capture_bodies(
     if not carries_version_body(entry.item_id):
         return SnippetBodies(install_body=install_body)
     version_body = await _capture_body(
-        f"Installed-version snippet for {entry.label}",
-        _version_authoring_note(source_hostname, target_hostname),
-        recorded.version_body if isinstance(recorded, VersionedSnippetBodies) else "",
+        f"Enter the commands that print the version of {entry.label} installed on whichever machine runs them:",
+        record_title=f"Installed-version snippet for {entry.label}",
+        note=_version_authoring_note(source_hostname, target_hostname),
+        existing=recorded.version_body if isinstance(recorded, VersionedSnippetBodies) else "",
         console=console,
     )
     if not version_body:
@@ -1388,10 +1420,12 @@ def _print_recorded_snippet(recorded: SnippetBodies | None, *, console: Console,
 
     Cut at `_file_body`'s cap, unlike the record `_snippet_record` keeps. A body long enough
     to scroll its own question off the terminal cannot be the ground for answering it.
+
+    No blank line of its own: the heading naming the item prints one and stands directly
+    above this, and the question below gets its own from `_ask`.
     """
     if recorded is None:
         return
-    console.print()
     console.print(
         Panel(
             _file_body(recorded.install_body),
@@ -1442,7 +1476,7 @@ async def _review_snippet_group(  # noqa: PLR0913 - screen content plus the two 
         verb = entry.action_label
         if is_update:
             options = _update_options(target_hostname)
-            title = version_mismatch_title(group.item_noun, entry.label, source_hostname, target_hostname)
+            title = version_mismatch_title(entry.label, source_hostname, target_hostname)
             default = Decision.APPLY.value
         elif is_retry:
             options = _retry_options(target_hostname)
@@ -1457,8 +1491,13 @@ async def _review_snippet_group(  # noqa: PLR0913 - screen content plus the two 
         # empty capture loops back here rather than manufacturing an unresolved item
         # (decision 10); a cancelled screen breaks out by aborting the whole sync.
         while True:
+            # The heading only where there is something to head. An entry with nothing on
+            # record shows no evidence, so its own question is the whole screen and a line
+            # naming the item above it would say the title's subject twice.
+            if entry.item_id in recorded:
+                _print_subject(console, noun=group.item_noun, label=entry.label)
             _print_recorded_snippet(recorded.get(entry.item_id), console=console, target_hostname=target_hostname)
-            selected = await _ask_about_one_item(entry, title=title, options=options, default=default)
+            selected = await _ask_about_one_item(entry, console=console, title=title, options=options, default=default)
 
             if selected in (Decision.SKIP_ALWAYS, Decision.SKIP_ONCE, Decision.APPLY):
                 # Every one of these is a real decision (`PKG-FR-MANUAL-RESOLUTION`): the item is resolved, this
@@ -1576,9 +1615,11 @@ async def _review_snippet_ownership_group(
     options = _snippet_ownership_options(source_hostname, target_hostname)
     for entry in group.entries:
         package = _bare_item_name(entry.label)
+        _print_subject(console, noun=group.item_noun, label=entry.label)
         _print_recorded_snippet(recorded.get(entry.item_id), console=console, target_hostname=target_hostname)
         selected = await _ask_about_one_item(
             entry,
+            console=console,
             title=f"Who put {package} on {source_hostname}?",
             explanation=(
                 f"{source_hostname} has an install snippet on record for it, and apt on {source_hostname} can "
@@ -1614,9 +1655,10 @@ def _print_report_group(group: ReviewGroup, *, console: Console, target_hostname
         console.print(Text(group.note, style="dim"))
 
 
-async def _review_decision_group(
+async def _review_decision_group(  # noqa: PLR0913 - one screen's content plus the two dicts it fills; all but the group keyword-only
     group: ReviewGroup,
     *,
+    console: Console,
     source_hostname: str,
     target_hostname: str,
     decisions: dict[str, Decision],
@@ -1643,7 +1685,7 @@ async def _review_decision_group(
         options=_options_for(group, source_hostname=source_hostname, target_hostname=target_hostname),
         explanation=group.note,
     )
-    answered: Mapping[str, str] | None = await asyncio.to_thread(prompt.ask)
+    answered: Mapping[str, str] | None = await _ask(prompt, console=console)
 
     if answered is None:
         raise SyncAbortedByUser(f"package review aborted at {group.title!r} (Ctrl-C)")
@@ -1658,6 +1700,7 @@ async def _review_decision_group(
         await _mark_side_if_permanent(
             group,
             entry,
+            console=console,
             source_hostname=source_hostname,
             target_hostname=target_hostname,
             decisions=decisions,
@@ -1735,6 +1778,7 @@ def _mark_side_options(source_hostname: str, target_hostname: str) -> tuple[Deci
 async def _ask_mark_side(
     entry: ReviewEntry,
     *,
+    console: Console,
     source_hostname: str,
     target_hostname: str,
 ) -> MarkSide:
@@ -1773,7 +1817,7 @@ async def _ask_mark_side(
         ),
         options=_mark_side_options(source_hostname, target_hostname),
     )
-    answered: Mapping[str, str] | None = await asyncio.to_thread(prompt.ask)
+    answered: Mapping[str, str] | None = await _ask(prompt, console=console)
     if answered is None:
         raise SyncAbortedByUser(
             f"package review aborted at the machine-specific follow-up for {entry.label!r} (Ctrl-C)"
@@ -1785,6 +1829,7 @@ async def _mark_side_if_permanent(  # noqa: PLR0913 - one entry's follow-up plus
     group: ReviewGroup,
     entry: ReviewEntry,
     *,
+    console: Console,
     source_hostname: str,
     target_hostname: str,
     decisions: Mapping[str, Decision],
@@ -1802,7 +1847,7 @@ async def _mark_side_if_permanent(  # noqa: PLR0913 - one entry's follow-up plus
     if not _is_conflicting_group(group.action) or decisions.get(entry.item_id) is not Decision.SKIP_ALWAYS:
         return
     mark_sides[entry.item_id] = await _ask_mark_side(
-        entry, source_hostname=source_hostname, target_hostname=target_hostname
+        entry, console=console, source_hostname=source_hostname, target_hostname=target_hostname
     )
 
 
@@ -1899,6 +1944,7 @@ async def _review_collateral_group(
         finding, _, ground = (entry.detail or "").partition("\n")
         selected = await _ask_about_one_item(
             entry,
+            console=console,
             title=finding or group.title,
             explanation=ground or None,
             detail="",
@@ -1945,12 +1991,13 @@ async def _review_removal_group(
     """
     options = _options_for(group, source_hostname=source_hostname, target_hostname=target_hostname)
     for entry in group.entries:
-        console.print()
-        console.print(Text(entry.label, style="bold"))
+        _print_subject(console, noun=group.item_noun, label=entry.label)
         if entry.content is not None:
             console.print(Panel(_file_body(entry.content), title=Text(f"On {target_hostname}"), border_style="yellow"))
         decisions[entry.item_id] = Decision(
-            await _ask_about_one_item(entry, title=group.title, options=options, default=_default_decision(group))
+            await _ask_about_one_item(
+                entry, console=console, title=group.title, options=options, default=_default_decision(group)
+            )
         )
 
 
@@ -2008,6 +2055,7 @@ async def _review_two_version_group(  # noqa: PLR0913 - one screen's content plu
         decisions[entry.item_id] = Decision(
             await _ask_about_one_item(
                 entry,
+                console=console,
                 title=change_title(entry.action_label, entry.label, target_hostname),
                 options=options,
                 default=_default_decision(group),
@@ -2016,6 +2064,7 @@ async def _review_two_version_group(  # noqa: PLR0913 - one screen's content plu
         await _mark_side_if_permanent(
             group,
             entry,
+            console=console,
             source_hostname=source_hostname,
             target_hostname=target_hostname,
             decisions=decisions,
@@ -2135,8 +2184,6 @@ async def review_items(  # noqa: PLR0913 - review surface plus both machine name
     mark_sides: dict[str, MarkSide] = {}
     with _display_handed_over(ui, for_a_question=any(asks_for_a_decision(group) for group in groups)):
         for group in groups:
-            console.print()
-
             if group.action == _REPORT_ACTION:
                 # Nothing to answer (ruled by the user): a reported condition converges in
                 # neither direction and records nothing, so both answers it used to offer
@@ -2197,6 +2244,7 @@ async def review_items(  # noqa: PLR0913 - review surface plus both machine name
 
             await _review_decision_group(
                 group,
+                console=console,
                 source_hostname=source_hostname,
                 target_hostname=target_hostname,
                 decisions=decisions,
@@ -2259,7 +2307,7 @@ async def ask_gate(  # noqa: PLR0913 - one two-answer screen's content; all keyw
                 questionary.Choice(title=stop_label, value=False),
             ],
         )
-        selected = await asyncio.to_thread(prompt.ask)
+        selected = await _ask(prompt, console=console)
     finally:
         ui.resume()
 

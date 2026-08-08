@@ -324,14 +324,17 @@ REMOVAL_CLASS_ORDER: dict[ItemClass, int] = {
 
 class RemovalVocabulary(NamedTuple):
     """How one deletable `/etc/apt` item class reads: `action_label` names the action for one
-    entry, `plural` names the objects for the group title.
+    entry, `singular` names one object for the heading its own screen opens on, `plural`
+    names the objects for the group title.
 
-    Two words rather than one because the two positions are different parts of speech. A
+    Separate words rather than one because the positions are different parts of speech. A
     title composed by pluralising the action label produces "Delete repositorys" — English
-    plurals do not follow from a verb phrase, and the noun is what is being counted.
+    plurals do not follow from a verb phrase, and the noun is what is being counted; the
+    singular does not follow from the plural by rule either.
     """
 
     action_label: str
+    singular: str
     plural: str
 
 
@@ -347,8 +350,8 @@ class RemovalVocabulary(NamedTuple):
 # packages `AptSyncJob.item_noun_plural` names, so the group title reads them out of here
 # instead of assembling one out of the job's manager id.
 REPO_REMOVAL_VERBS: dict[ItemClass, RemovalVocabulary] = {
-    ItemClass.APT_SOURCE: RemovalVocabulary("remove", "apt repositories"),
-    ItemClass.APT_PIN: RemovalVocabulary("remove", "apt pin files"),
+    ItemClass.APT_SOURCE: RemovalVocabulary("remove", "apt repository", "apt repositories"),
+    ItemClass.APT_PIN: RemovalVocabulary("remove", "apt pin file", "apt pin files"),
 }
 
 

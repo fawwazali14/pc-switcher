@@ -228,7 +228,8 @@ The converge-loop retry is last because it is not a review screen at all: it is 
 - Each of the four snippet jobs puts its own review. A job's findings never appear in another's.
 - Every title names the machine the change lands on and ends in `?`. Nothing on any screen may print a job or manager identifier — `manual_deb`, `manual_flatpak`, `manual` or a job name — and seeing one is a finding (#276).
 - The group offering software pc2 cannot get is titled `pc1 has <plural noun> that no package manager can put on pc2?`, where the noun is `manual debs`, `sideloaded snaps`, `manual flatpaks` or `manually installed apps`.
-- The group for items both machines have at different versions is titled `Update <singular noun> versions on pc2?`.
+- Items both machines have at different versions are asked about one at a time, so no group title for them ever reaches the screen: each is headed `<singular noun> <item>` and titled `pc1 and pc2 have different versions of <item> — update it on pc2?` (§3.5).
+- Every question in the whole review has a blank line in front of it, whatever printed before it — two questions of one job running together is a finding (#287).
 
 The titles to confirm read well on a real terminal:
 
@@ -236,7 +237,7 @@ The titles to confirm read well on a real terminal:
 Remove manual debs from pc2?
 Remove manually installed apps from pc2?
 pc1 has manual debs that no package manager can put on pc2?
-Update sideloaded snap versions on pc2?
+pc1 and pc2 have different versions of pcsw-uat-snapdrift (2.0) — update it on pc2?
 ```
 
 ### 3.3 The two file bodies, and the machine-specific follow-up each answer raises
@@ -268,13 +269,15 @@ Approve both. What to check here is that the warning appears at all, on the path
 
 ### 3.5 Version convergence
 
-Follows the resolution screens in each job that has both, and comes before that job's removal group. Three items reach this screen, one per ecosystem, and they are exactly the three that have a recorded snippet: `pcsw-uat-drift` (deb), `pcsw-uat-snapdrift` (snap) and `/opt/pcsw-uat-loop` (path). Each is asked on its own screen titled `pc1 and pc2 have different versions of <singular noun> <item> — update it on pc2?`, with exactly three answers and **no** `<x>`:
+Follows the resolution screens in each job that has both, and comes before that job's removal group. Three items reach this screen, one per ecosystem, and they are exactly the three that have a recorded snippet: `pcsw-uat-drift` (deb), `pcsw-uat-snapdrift` (snap) and `/opt/pcsw-uat-loop` (path). Each is asked on its own screen, headed `<singular noun> <item>` and then titled `pc1 and pc2 have different versions of <item> — update it on pc2?`, with exactly three answers and **no** `<x>`:
 
 - `<y> update` — `run the recorded snippet on pc2`
 - `<w> new snippet` — `rewrite the snippet first, then run it on pc2`
 - `<s> skip now` — `leave pc2's version as it is for now; will be asked again next sync`
 
-Above the answers, a cyan panel titled `Recorded snippet — would run on pc2` holds that item's whole install body (#281 is fixed) — a screen asking whether the recorded snippet is still right without showing it is a regression. The first two answers both change pc2 and both read as acts; `<w>` rendered in the skip colour is a regression too.
+The heading comes FIRST, then the panel, then the question (#287 is fixed): a panel arriving before anything says what the screen is about is a regression. The noun belongs to the heading alone — reading it in the heading and again in the question is a regression too.
+
+Between the heading and the question, a cyan panel titled `Recorded snippet — would run on pc2` holds that item's whole install body (#281 is fixed) — a screen asking whether the recorded snippet is still right without showing it is a regression. The first two answers both change pc2 and both read as acts; `<w>` rendered in the skip colour is a regression too.
 
 The comparison must be made on the snap's **version**, `2.0` against `1.0`, and never on its revision — both machines are at `x1`, so a run comparing revisions would find nothing to do. The revision must not be printed either: it is not something the user decides on (#276).
 
@@ -290,10 +293,14 @@ The first group of each snippet job. Four items have no recorded snippet and so 
 
 `/opt/pcsw-uat-app` is the one kind with no package manager to ask for a version, so it is the only one that takes two editors. On `Install manually installed app /opt/pcsw-uat-app on pc2?` answer `<y>` and confirm that **two** editors open in sequence:
 
-1. `Install-or-update snippet for /opt/pcsw-uat-app:` — its own screen states the install-or-update contract, that the body is replayed onto a machine which may already hold an older version.
-2. `Installed-version snippet for /opt/pcsw-uat-app:` — its own screen states that this one runs on both machines on every sync while the run is still planning, and must be read-only.
+1. `Enter the commands that install or update /opt/pcsw-uat-app on pc2:` — its own screen states the install-or-update contract, that the body is replayed onto a machine which may already hold an older version.
+2. `Enter the commands that print the version of /opt/pcsw-uat-app installed on whichever machine runs them:` — its own screen states that this one runs on both machines on every sync while the run is still planning, and must be read-only.
 
-Each editor closes onto a panel of its own, titled with the question and holding the body you wrote at the terminal's full width (#281 is fixed). Watch a long line: `set -eu` followed by a `printf` of a `.deb` control file is the case that used to wrap mid-token in a narrow column. The authoring note and the `(Ctrl-D to finish)` marker must be gone from the scrollback; the body must be there, whole.
+Each prompt INSTRUCTS: a label with a question mark on the end (`Installed-version snippet for /opt/pcsw-uat-app:`) is a regression (#287). The second must carry the distinction on its own line — the version INSTALLED on whichever machine runs it, not the one the commands above would produce.
+
+A blank line must separate the second editor from the first's echoed body: the two running together is the regression #287 shows.
+
+Each editor closes onto a panel of its own, titled `Install-or-update snippet for /opt/pcsw-uat-app` / `Installed-version snippet for /opt/pcsw-uat-app` and holding the body you wrote at the terminal's full width (#281 is fixed). Watch a long line: `set -eu` followed by a `printf` of a `.deb` control file is the case that used to wrap mid-token in a narrow column. The authoring note and the `(Ctrl-D to finish)` marker must be gone from the scrollback; the body must be there, whole.
 
 Both must refuse an empty body and a body of only spaces, printing `Neither snippet can be empty — enter both, or choose a skip.` and putting the three answers again. Try each refusal on each editor: submitting a real install body and then an empty version body must not leave a half-written entry anywhere.
 
@@ -324,8 +331,8 @@ Answer them with an install-or-update body each, `<y>` then one editor:
 
 - The version is read again on pc2 after the replay.
 - The item is **not** reported as applied.
-- A second screen appears, titled `Manually installed app /opt/pcsw-uat-loop on pc2 is still 1.0, not 2.0`, offering exactly **two** answers — `<w> new snippet` and `<s> skip now`. The replay answer is gone, because replaying the same bytes cannot change the outcome.
-- The body that moved nothing is printed above those answers, in the same `Recorded snippet — would run on pc2` panel §3.5 describes.
+- A second screen appears, headed `manually installed app /opt/pcsw-uat-loop` and titled `/opt/pcsw-uat-loop on pc2 is still 1.0, not 2.0`, offering exactly **two** answers — `<w> new snippet` and `<s> skip now`. The replay answer is gone, because replaying the same bytes cannot change the outcome.
+- The body that moved nothing is printed between that heading and those answers, in the same `Recorded snippet — would run on pc2` panel §3.5 describes.
 - Its editor opens on the body that just failed.
 
 Answer `<w>` and write a body that actually converges, then confirm the item comes out applied:
@@ -486,7 +493,7 @@ ssh testuser@"$PC1" 'printf "snippets:\n  \"unreproducible:apt-no-candidate:tree
 ssh testuser@"$PC1" '~/.local/bin/pc-switcher sync pc2 --allow-out-of-order'
 ```
 
-`manual_deb_sync`'s last screen must ask **Who put tree on pc1?**, with the recorded snippet body printed above it and the row's detail naming the repository apt would install from. Exactly two answers, `y` "apt did" and `k` "I did", and no third — `x` must do nothing.
+`manual_deb_sync`'s last screen must ask **Who put tree on pc1?**, headed `manual deb tree` with the recorded snippet body between that heading and the question, and the row's detail naming the repository apt would install from. The body arriving before anything says what the screen is about is a finding (#287). Exactly two answers, `y` "apt did" and `k` "I did", and no third — `x` must do nothing.
 
 Answer `k`. The run must print the pin file — `/etc/apt/preferences.d/keep-tree`, `Pin-Priority: -1` — and say `apt-mark hold` is the weaker lever. Then check nothing was recorded:
 

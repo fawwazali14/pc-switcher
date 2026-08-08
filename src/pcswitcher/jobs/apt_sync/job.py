@@ -755,6 +755,7 @@ class AptSyncJob(PackageSyncJob):
                     # The manager belongs INSIDE the sentence — "apt repositories" is what
                     # the files are, while a trailing "(apt)" reads as a tag on the question.
                     title=change_title("delete", words.plural, self.machines.target),
+                    item_noun=words.singular,
                     entries=tuple(
                         ReviewEntry(
                             item_id=diff.item_id,

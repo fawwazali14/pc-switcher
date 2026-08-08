@@ -19,6 +19,7 @@ from pcswitcher.jobs.packages.review import (
     COLLATERAL_REVIEW_ACTION,
     REPO_CONFLICT_REVIEW_ACTION,
     REPO_REMOVAL_REVIEW_ACTION,
+    SNIPPET_OWNERSHIP_REVIEW_ACTION,
     UNREPRODUCIBLE_REVIEW_ACTION,
     UNREPRODUCIBLE_UPDATE_REVIEW_ACTION,
     ReviewEntry,
@@ -143,7 +144,8 @@ GROUPS = [
         "apt",
         REPO_REMOVAL_REVIEW_ACTION,
         f"Delete apt repositories from {TARGET_HOST}?",
-        [
+        item_noun="apt repository",
+        entries=[
             ReviewEntry(
                 "apt:source:99-pcsw-uat.list",
                 "99-pcsw-uat.list (list)",
@@ -167,7 +169,8 @@ GROUPS = [
         "apt",
         REPO_REMOVAL_REVIEW_ACTION,
         f"Delete apt pin files from {TARGET_HOST}?",
-        [
+        item_noun="apt pin file",
+        entries=[
             ReviewEntry(
                 "apt:pin:99-pcsw-uat.pref",
                 "99-pcsw-uat.pref",
@@ -263,6 +266,29 @@ GROUPS = [
                 "b=/var/tmp/pcsw-uat-drift\n"
                 'printf "Package: pcsw-uat-drift\\nVersion: 2.0\\nArchitecture: all\\n" > "$b/DEBIAN/control"\n'
                 "sudo DEBIAN_FRONTEND=noninteractive dpkg --install /var/tmp/pcsw-uat-drift_2.0_all.deb"
+            )
+        },
+    ),
+    # The registry's own question, and the third screen that prints a body it did not just
+    # capture. Rehearsed because the guidance it prints after "I did" is long enough to be
+    # worth reading on a real terminal, and because its heading has to name the package
+    # before that body rather than after it.
+    ReviewGroup(
+        "manual_deb",
+        SNIPPET_OWNERSHIP_REVIEW_ACTION,
+        f"{SOURCE_HOST} has install snippets for packages apt can install too",
+        [
+            ReviewEntry(
+                "unreproducible:apt-no-candidate:qemu-guest-agent",
+                "qemu-guest-agent (1:8.2.2+ds-0ubuntu1.18)",
+                "drop the snippet",
+                "apt would install it from http://ftp.belnet.be/ubuntu",
+            )
+        ],
+        item_noun="manual deb",
+        recorded_bodies={
+            "unreproducible:apt-no-candidate:qemu-guest-agent": SnippetBodies(
+                install_body="sudo DEBIAN_FRONTEND=noninteractive dpkg --install /var/tmp/qemu-guest-agent.deb"
             )
         },
     ),

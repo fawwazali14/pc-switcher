@@ -79,7 +79,7 @@ A snap's revision/channel change also takes two answers: nobody keeps a revision
 
 **Removal groups start at skip-now.** A bulk confirm can never silently delete something. So do groups that would overwrite an `apt.conf.d` file the target already holds.
 
-Some questions come one-per-screen because they have to show you something first: a file body, a collateral package, an unreproducible item. Where both machines hold the file and their copies differ — an `apt.conf.d` file, a repository file — the screen opens on a heading naming that one file, then the source's copy whole, then the target's saying what the answer would do to it: updated for a configuration file, overwritten for a repository conflict. The question names the file too, not the group above it.
+Some questions come one-per-screen because they have to show you something first: a file body, a collateral package, an unreproducible item. Every one of those screens is built the same way — a heading naming what it is about, then the thing itself, then the question — and every question in the review has a blank line in front of it, whatever came before. Where both machines hold the file and their copies differ — an `apt.conf.d` file, a repository file — the screen opens on a heading naming that one file, then the source's copy whole, then the target's saying what the answer would do to it: updated for a configuration file, overwritten for a repository conflict. The question names the file too, not the group above it.
 
 Some findings are only reported, not asked about: version differences, origin divergences, repositories the source cannot reproduce. Neither answering nor declining would change anything, so there is nothing to answer.
 
@@ -91,7 +91,7 @@ Choosing `x` marks the item as belonging to *this specific machine*. The mark is
 
 Where both machines have the item and their copies differ, a follow-up screen asks whose own version this is — one machine, the other, or both — straight after you answer that item, while its two versions are still on screen above. The keys are `s` for the source machine, `t` for the target and `b` for both, and the column shows the two hostnames. Naming both records one on each, so the answer survives either machine losing its copy.
 
-It is the one screen that starts on no answer at all. `<enter>` does nothing until every row has a key, and says which rows are still outstanding — neither machine is the holder by right, and the record it writes is permanent.
+It is the one screen that starts on no answer at all. `<enter>` does nothing until its row has a key, and says so — neither machine is the holder by right, and the record it writes is permanent.
 
 The mark lasts as long as the software is on the holding machine. Once it is gone, the mark is dropped and the run says so.
 
@@ -101,7 +101,7 @@ Marks live under `~/.config/pc-switcher/<manager>.decisions.yaml`. To un-mark, d
 
 The four `manual_*` jobs share one snippet registry at `~/.config/pc-switcher/package-snippets.yaml`. When one of these jobs finds an item, you have three choices:
 
-- `y` — Write an install snippet. One editor opens for the install-or-update body; `manual_installs_sync` opens a second for an installed-version body.
+- `y` — Write an install snippet. One editor opens for the install-or-update body; `manual_installs_sync` opens a second for an installed-version body. Each editor's prompt says what to type; when it closes, the body you wrote stays in the scrollback under a title naming which snippet it is.
 - `s` — Skip now.
 - `x` — Never install here.
 

@@ -905,9 +905,10 @@ class UnreproducibleSyncJob(PackageSyncJob):
                     manager=self.manager_id,
                     action=UNREPRODUCIBLE_RETRY_REVIEW_ACTION,
                     # A statement, not a question: the screen below it offers the answers, and
-                    # what the user needs first is the fact the replay did not change.
-                    title=f"{self.item_noun.capitalize()} {diff.label} on {self.machines.target} is still "
-                    f"{landed}, not {expected}",
+                    # what the user needs first is the fact the replay did not change. No
+                    # noun — the heading above the body that failed already names what the
+                    # item is (#287).
+                    title=f"{diff.label} on {self.machines.target} is still {landed}, not {expected}",
                     item_noun=self.item_noun,
                     entries=(
                         ReviewEntry(

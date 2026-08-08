@@ -17,6 +17,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import fields
 from io import StringIO
+from itertools import pairwise
 from typing import Any, ClassVar, TypedDict
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1382,6 +1383,20 @@ class TestUnreproducibleGroupResolution:
         assert "Install-or-update snippet for brscan3" in scrollback
         assert "sudo dpkg --install /tmp/x.deb" in scrollback
 
+    async def test_the_installed_version_prompt_instructs_where_the_record_labels(self) -> None:
+        """H265 — the prompt is read with an empty buffer in front of the user, so it says
+        what to type and carries the distinction the note makes: the version INSTALLED on
+        whichever machine runs it, not the one the install body would produce. The block left
+        behind afterwards still labels what was written (#287)."""
+        editors, scrollback = await self._editor_screens()
+        install_prompt, version_prompt = (call.args[0] for call in editors)
+
+        assert install_prompt == "Enter the commands that install or update brscan3 on nomad:"
+        assert version_prompt == (
+            "Enter the commands that print the version of brscan3 installed on whichever machine runs them:"
+        )
+        assert "Installed-version snippet for brscan3" in scrollback
+
     async def test_the_captured_body_is_printed_full_width_and_whole(self) -> None:
         """G191 — questionary echoes an answer in the column right of the prompt's own text,
         which wrapped a shell line mid-token under a title naming the item. The review prints
@@ -1727,6 +1742,15 @@ class TestTheRecordedSnippetIsOnScreen:
 
         assert RECORDED_BODY in scrollback
 
+    async def test_the_item_is_named_above_the_body_it_is_about(self) -> None:
+        """H266 — a panel arriving first left the user reading a snippet with no idea yet why
+        it was on screen (#287). The heading names what the screen is about, then the
+        evidence, then the question."""
+        _call, scrollback = await self._screen(_update_group())
+
+        assert "manual deb pcsw-uat-drift (2.0)" in scrollback
+        assert scrollback.index("manual deb pcsw-uat-drift (2.0)") < scrollback.index("would run on nomad")
+
     async def test_the_resolve_screen_prints_no_block(self) -> None:
         """G193 — an item with nothing recorded has nothing to show: the screen asks the user to
         write the first body, not to judge one."""
@@ -1745,6 +1769,94 @@ class TestTheRecordedSnippetIsOnScreen:
             ("w", "new snippet", True),
             ("s", SKIP_NOW_WORD, False),
         ]
+
+
+_QUESTION_MARKER = "<<question>>"
+
+
+def _marking_prompt(console: Console, answers: Any) -> MagicMock:
+    """A prompt that prints a marker line where the real widget would draw itself.
+
+    The review's own prompts render through prompt_toolkit rather than the Rich console, so
+    a test asserting what is directly ABOVE a question has nothing to anchor on. This puts
+    one line in the scrollback at the moment the question is put.
+    """
+    prompt = MagicMock()
+
+    def ask() -> object:
+        console.print(_QUESTION_MARKER)
+        return next(answers)
+
+    prompt.ask = ask
+    return prompt
+
+
+@pytest.mark.asyncio
+class TestOneBlankLineBeforeEveryQuestion:
+    """#287: every question is separated from whatever precedes it — not only the first one
+    after a log panel. Two questions of one job used to run together, the install editor and
+    the version editor for one item being the case the issue shows.
+    """
+
+    @staticmethod
+    async def _scrollback(groups: Sequence[ReviewGroup], answers: Sequence[object]) -> list[str]:
+        console, sink = captured_console(terminal=True)
+        replies = iter(answers)
+
+        def marking(*_args: object, **_kwargs: object) -> MagicMock:
+            return _marking_prompt(console, replies)
+
+        with (
+            patch.object(sys, "stdin", _mock_isatty(True)),
+            patch("pcswitcher.jobs.packages.review.decision_list", side_effect=marking),
+            patch("pcswitcher.jobs.packages.review.questionary.text", side_effect=marking),
+        ):
+            await review_items(groups, console=console, ui=MagicMock(), **HOSTS)
+
+        return [line.rstrip() for line in sink.getvalue().splitlines()]
+
+    @staticmethod
+    def _assert_separated(lines: Sequence[str]) -> None:
+        marks = [index for index, line in enumerate(lines) if line == _QUESTION_MARKER]
+        assert marks, "the run put no question at all"
+        for index in marks:
+            assert index and not lines[index - 1], f"no blank line before the question at line {index}: {lines}"
+        doubled = any(not first and not second for first, second in pairwise(lines))
+        assert not doubled, f"a blank line doubled up: {lines}"
+
+    async def test_two_editors_of_one_item_do_not_run_together(self) -> None:
+        """H264 — the install editor and the version editor are two questions of one answer,
+        and the second used to open directly under the first's echoed body."""
+        group = _unreproducible_group([_entry(UNOWNED_PATH_ID, label="/opt/az")])
+        lines = await self._scrollback([group], [{UNOWNED_PATH_ID: "add_snippet"}, "sudo install", "echo 1.0"])
+
+        self._assert_separated(lines)
+        assert sum(line == _QUESTION_MARKER for line in lines) == 3
+
+    async def test_a_batch_screen_and_a_report_before_it_are_separated(self) -> None:
+        """H264 — the batch screen printed no blank of its own, so it ran into whatever the
+        group before it left behind."""
+        report = ReviewGroup(
+            manager="apt",
+            action="report_only",
+            title="Version differences (apt packages)",
+            entries=(_entry("apt:package:tree", label="tree (2.1.1)", action_label="report"),),
+        )
+        batch = ReviewGroup(
+            manager="apt", action="install", title="Install apt packages on nomad?", entries=(_entry("a"),)
+        )
+        lines = await self._scrollback([report, batch], [{"a": "apply"}])
+
+        self._assert_separated(lines)
+
+    async def test_a_screen_with_evidence_is_separated_from_its_own_question(self) -> None:
+        """H264 — the heading owns the blank in front of the screen and the question owns the
+        one in front of itself, so neither the panels nor the two ever double up."""
+        lines = await self._scrollback(
+            [_apt_config_group([_apt_config_entry()])], [{"apt:config:99-pcsw-uat": "apply"}]
+        )
+
+        self._assert_separated(lines)
 
 
 def _ownership_group(*, label: str = "qemu-guest-agent (1:8.2.2+ds-0ubuntu1.18)") -> ReviewGroup:
@@ -1808,6 +1920,8 @@ class TestWhoInstalledItScreen:
         assert RECORDED_BODY in scrollback
         assert call.kwargs["rows"][0].detail == "apt would install it from http://ftp.belnet.be/ubuntu"
         assert "atlas" in call.args[0]
+        # H266 — the heading names the subject before the body, never the other way round.
+        assert scrollback.index("manual deb qemu-guest-agent") < scrollback.index(RECORDED_BODY)
 
     async def test_saying_apt_did_it_records_the_act(self) -> None:
         """G198 — the answer that gives the package back to apt is `APPLY`, which the job then
