@@ -878,11 +878,13 @@ class Orchestrator:
                     error_message=e.reason,
                 )
             )
+            # Tagged with the job for the same reason as the job loop's own lifecycle
+            # lines: the `job` field says which job the record is about.
             self._logger.warning(
                 "Job %s skipped: %s",
                 install_job.display_name,
                 e.reason,
-                extra={"job": "orchestrator", "host": "target"},
+                extra={"job": install_job.name, "host": "target"},
             )
             self._ui.close_job_bar(install_job.name, install_job.display_name, "skipped")
         else:
@@ -1529,9 +1531,11 @@ class Orchestrator:
                         # their message names the job the way the user knows it; the
                         # structured `job` field stays the identifier a log filter matches.
                         #
-                        # Tagged with the job's own name, not "orchestrator": this line opens
-                        # the run of log lines the job itself emits, so it reads as the first
-                        # of them rather than as a separate orchestrator remark.
+                        # All four are tagged with the job, not "orchestrator": the field says
+                        # which job the record is ABOUT (`LOG-FR-JSON` — context the call
+                        # supplies), and the orchestrator being the code that emits a job's
+                        # start and end is an implementation detail. Tagged otherwise, filtering
+                        # the column for one job gave its start and its work but not its end.
                         self._logger.info(
                             "Job %s started",
                             job.display_name,
@@ -1555,7 +1559,7 @@ class Orchestrator:
                         self._logger.info(
                             "Job %s completed successfully",
                             job.display_name,
-                            extra={"job": "orchestrator", "host": "source"},
+                            extra={"job": job.name, "host": "source"},
                         )
                         self._ui.close_job_bar(job.name, job.display_name)
 
@@ -1587,7 +1591,7 @@ class Orchestrator:
                             "Job %s skipped: %s",
                             job.display_name,
                             e.reason,
-                            extra={"job": "orchestrator", "host": "source"},
+                            extra={"job": job.name, "host": "source"},
                         )
                         self._ui.close_job_bar(job.name, job.display_name, "skipped")
                     except Exception as e:
@@ -1606,7 +1610,7 @@ class Orchestrator:
                             "Job %s failed: %s",
                             job.display_name,
                             e,
-                            extra={"job": "orchestrator", "host": "source"},
+                            extra={"job": job.name, "host": "source"},
                         )
                         self._ui.close_job_bar(job.name, job.display_name, "failed")
                         if _failure_stays_in_its_job(job, e):

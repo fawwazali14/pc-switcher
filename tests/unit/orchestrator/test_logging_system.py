@@ -29,8 +29,9 @@ import pytest
 from pcswitcher.config import Configuration
 from pcswitcher.jobs.base import SyncJob
 from pcswitcher.jobs.context import JobContext
+from pcswitcher.jobs.install_on_target import INSTALL_ON_TARGET_SKIP_ENV
 from pcswitcher.logger import generate_log_filename
-from pcswitcher.models import LogLevel, SyncAborted, ValidationError
+from pcswitcher.models import JobSkipped, LogLevel, SyncAborted, ValidationError
 from pcswitcher.orchestrator import Orchestrator
 from tests.unit.jobs.test_package_sync_core import make_context
 
@@ -213,3 +214,77 @@ class TestJobStartIsLogged:
         await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
 
         assert logger.info.call_args_list[0].kwargs["extra"] == {"job": "stub_start_log", "host": "source"}
+
+
+class _EndingJob(SyncJob):
+    """A job that ends the way the test asks it to, to pin the tag on its closing line."""
+
+    name: ClassVar[str] = "stub_ending"
+    display_name: ClassVar[str] = "Ending job"
+
+    def __init__(self, context: JobContext, ending: Exception | None = None) -> None:
+        super().__init__(context)
+        self._ending = ending
+
+    async def validate(self) -> list[ValidationError]:
+        return []
+
+    async def execute(self) -> None:
+        if self._ending is not None:
+            raise self._ending
+
+
+def _tag_of(calls: list[Any], needle: str) -> dict[str, str]:
+    """The `extra` of the one logged call whose format string contains `needle`."""
+    matching = [call for call in calls if needle in call.args[0]]
+    assert len(matching) == 1
+    return matching[0].kwargs["extra"]
+
+
+class TestJobLifecycleLinesAreTaggedWithTheJob:
+    """#289 — the `job` field says which job a record is ABOUT, so scanning the Recent Logs
+    column for one job must give its end as well as its start and its work. The orchestrator
+    being the code that emits the closing line is an implementation detail.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_completed_line_carries_the_job(self, wired_orchestrator: Orchestrator) -> None:
+        logger = cast(MagicMock, wired_orchestrator._logger)  # pyright: ignore[reportPrivateUsage]
+
+        await wired_orchestrator._execute_jobs([_EndingJob(make_context())])  # pyright: ignore[reportPrivateUsage]
+
+        assert _tag_of(logger.info.call_args_list, "completed successfully") == {
+            "job": "stub_ending",
+            "host": "source",
+        }
+
+    @pytest.mark.asyncio
+    async def test_the_skipped_line_carries_the_job(self, wired_orchestrator: Orchestrator) -> None:
+        logger = cast(MagicMock, wired_orchestrator._logger)  # pyright: ignore[reportPrivateUsage]
+        job = _EndingJob(make_context(), JobSkipped("stub_ending", "nothing to do"))
+
+        await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
+
+        assert _tag_of(logger.warning.call_args_list, "skipped") == {"job": "stub_ending", "host": "source"}
+
+    @pytest.mark.asyncio
+    async def test_the_failed_line_carries_the_job(self, wired_orchestrator: Orchestrator) -> None:
+        logger = cast(MagicMock, wired_orchestrator._logger)  # pyright: ignore[reportPrivateUsage]
+        job = _EndingJob(make_context(), RuntimeError("boom"))
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
+
+        assert _tag_of(logger.critical.call_args_list, "failed") == {"job": "stub_ending", "host": "source"}
+
+    @pytest.mark.asyncio
+    async def test_the_install_on_target_skip_carries_the_job(
+        self, wired_orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The step outside the job loop is tagged the same way."""
+        monkeypatch.setenv(INSTALL_ON_TARGET_SKIP_ENV, "1")
+        logger = cast(MagicMock, wired_orchestrator._logger)  # pyright: ignore[reportPrivateUsage]
+
+        await wired_orchestrator._install_on_target_job()  # pyright: ignore[reportPrivateUsage]
+
+        assert _tag_of(logger.warning.call_args_list, "skipped") == {"job": "install_on_target", "host": "target"}
