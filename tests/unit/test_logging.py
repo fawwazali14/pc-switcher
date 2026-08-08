@@ -1,6 +1,6 @@
 """Unit tests for logging infrastructure.
 
-Tests cover LOG-SC-FILE-DEBUG, LOG-SC-EXT-FILTER, LOG-SC-NO-REGRESS, LOG-SC-INVALID-FAIL.
+Tests cover LOG-SC-CONFIG, LOG-SC-FILE-DEBUG, LOG-SC-EXT-FILTER, LOG-SC-INVALID-FAIL.
 """
 
 from __future__ import annotations
@@ -278,7 +278,7 @@ class TestRichFormatter:
 
 
 class TestSetupLogging:
-    """Test logging infrastructure setup (LOG-SC-NO-REGRESS, LOG-SC-INVALID-FAIL)."""
+    """Test logging infrastructure setup (LOG-SC-CONFIG, LOG-SC-INVALID-FAIL)."""
 
     def test_creates_queue_listener(self) -> None:
         """setup_logging should return a QueueListener."""
