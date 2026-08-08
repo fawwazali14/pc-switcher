@@ -140,6 +140,67 @@ def test_heartbeat_and_count_updates_pulse_bar_then_percent_restores_scale() -> 
     assert task.completed == 42
 
 
+def test_an_opened_bar_pulses_on_its_phase_and_is_handed_over_to_the_jobs_own_updates() -> None:
+    """#288: the bar exists from job start; the job's own first update takes it over."""
+    output = StringIO()
+    console = Console(file=output, force_terminal=True, width=120)
+    ui = TerminalUI(console=console, max_log_lines=5, total_steps=None)
+
+    ui.open_job_bar("apt_sync", "Apt packages")
+    task = ui._progress._tasks[ui._job_tasks["apt_sync"]]
+    assert task.total is None, "an opened bar must pulse, never sit at a fixed percentage"
+    assert "Apt packages" in task.description
+
+    ui.update_job_progress("apt_sync", ProgressUpdate(heartbeat=True, item="checking both machines"), "Apt packages")
+    assert list(ui._job_tasks) == ["apt_sync"], "the job's own phase must reuse the opened bar"
+    assert "checking both machines" in ui._progress._tasks[ui._job_tasks["apt_sync"]].description
+
+
+def test_a_tracked_first_update_takes_over_the_opened_bar_instead_of_adding_one() -> None:
+    """A job whose work is tracked per unit (folder_sync) must not leave an idle extra bar."""
+    output = StringIO()
+    console = Console(file=output, force_terminal=True, width=120)
+    ui = TerminalUI(console=console, max_log_lines=5, total_steps=None)
+
+    ui.open_job_bar("folder_sync", "Folder sync")
+    ui.update_job_progress("folder_sync", ProgressUpdate(percent=10, item="/home", track="/home"), "Folder sync")
+    ui.update_job_progress("folder_sync", ProgressUpdate(percent=10, item="/root", track="/root"), "Folder sync")
+
+    assert len(ui._job_tasks) == 2, "one bar per folder, none left over from the opening"
+
+
+def test_a_job_that_ends_without_reporting_leaves_no_pulsing_bar() -> None:
+    """Opening a bar at job start obliges the orchestrator to close it (skip, fail or done)."""
+    output = StringIO()
+    console = Console(file=output, force_terminal=True, width=120)
+    ui = TerminalUI(console=console, max_log_lines=5, total_steps=None)
+
+    ui.open_job_bar("snap_sync", "Snaps")
+    ui.close_job_bar("snap_sync", "Snaps", "skipped")
+
+    task = ui._progress._tasks[ui._job_tasks["snap_sync"]]
+    assert task.total == 100
+    assert task.completed == 100
+    assert task.description.endswith("skipped")
+
+    # A job that never started has no bar to close, and closing must not invent one.
+    ui.close_job_bar("flatpak_sync", "Flatpaks")
+    assert "flatpak_sync" not in ui._job_tasks
+
+
+def test_an_update_carrying_only_an_item_pulses_with_that_text() -> None:
+    """A phase with no number is still a phase: it must reach the bar, not be dropped."""
+    output = StringIO()
+    console = Console(file=output, force_terminal=True, width=120)
+    ui = TerminalUI(console=console, max_log_lines=5, total_steps=None)
+
+    ui.update_job_progress("vscode_state_sync", ProgressUpdate(item="looking for editor state"), "VS Code state")
+
+    task = ui._progress._tasks[ui._job_tasks["vscode_state_sync"]]
+    assert task.total is None
+    assert task.description.endswith("looking for editor state")
+
+
 def test_track_gives_each_unit_of_work_its_own_persistent_bar() -> None:
     """Distinct `track` values create separate bars; finished ones keep their state.
 

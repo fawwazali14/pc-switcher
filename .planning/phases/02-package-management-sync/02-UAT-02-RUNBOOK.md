@@ -187,11 +187,13 @@ pc-switcher sync pc2 --yes --allow-first-sync
 
 A dry run converges nothing, so three things below cannot happen in it: no snippet is recorded, no registry is pushed, and the converge loop of §3.7 never opens — `_converge_one` (`jobs/packages/sync_core.py`) is not called at all. Walk the dry run for the screens, then answer the real run for the outcomes.
 
-Every finding raised from an earlier walk of these fixtures is fixed — review copy and titles (#276), the file bodies of §3.3 (#277), the follow-up's keys and default (#278), the repeated scrollback frames (#279), the job names below (#280), the snippet screens of §3.5, §3.6 and §3.7 (#281), the registry's two entry types (#282) and the group order of §3.2 (#283). None of them is still an open defect to observe: this runbook says what to expect instead, and seeing the old behaviour is a regression.
+Every finding raised from an earlier walk of these fixtures is fixed — review copy and titles (#276), the file bodies of §3.3 (#277), the follow-up's keys and default (#278), the repeated scrollback frames (#279), the job names below (#280), the snippet screens of §3.5, §3.6 and §3.7 (#281), the registry's two entry types (#282), the group order of §3.2 (#283) and the progress bars below (#288). None of them is still an open defect to observe: this runbook says what to expect instead, and seeing the old behaviour is a regression.
 
 The status line, the progress bars and the outcome block name jobs the way a user would (#280 is fixed): `Apt packages`, `Snaps`, `Flatpaks`, `Manual debs`, `Sideloaded snaps`, `Manual flatpaks`, `Manually installed apps`, `Folder sync`, `Install on target`. A module name such as `manual_deb_sync` on screen is a regression. Config keys and the `job` field in the log file stay the module name, so §4's log greps are unaffected.
 
 The Recent Logs panel follows the same rule in its message text (#276): a job counts its work in the same words its screens use — `Applying 1 change to manual debs`, `No snaps to change`, `1 manually installed app failed` — and the module name appears only in the `[manual_deb_sync]` prefix each line already carries.
+
+Every job has a bar from the moment it starts (#288 is fixed), and the bar says what the job is doing rather than sitting at a percentage it cannot know: `checking both machines` while it plans, `waiting for your answers` through its review, `applying your answers` until it has items to count, then a real percentage per item. A job the status line names but the bars do not list is a regression, and so is a bar parked at `0%` for a minute of probing. The bars for `Btrfs snapshots` and `Install on target` appear the same way at their own steps.
 
 ### 3.1 The three exclusions
 
@@ -203,7 +205,7 @@ Each pair of jobs decides its boundary by one shared rule, so a finding claimed 
 
 `snap_sync` and `flatpak_sync` therefore have nothing of their own to do in this run and must report `success`, not `skipped` (as `Snaps` and `Flatpaks` in the outcome block): a review holding nothing to decide is the goal already met. `apt_sync`'s only item is the `apt.conf.d` file of §3.3.
 
-Neither must leave a frame in the scrollback (#279 is fixed). A frozen copy of the status line, the progress bars and the Recent Logs panel belongs above a question and nowhere else, so count them: one per screen you are actually asked, and none for a job that asks nothing. A job whose review is only reported findings still PRINTS them — the panels appear while the display keeps running.
+Neither must leave a frame in the scrollback (#279 is fixed). A frozen copy of the status line, the progress bars and the Recent Logs panel belongs above a question and nowhere else, so count them: one per screen you are actually asked, and none for a job that asks nothing. In each of those frames the asking job is in the bars, reading `waiting for your answers` — the frame that lists only the jobs which already finished is the #288 regression. A job whose review is only reported findings still PRINTS them — the panels appear while the display keeps running.
 
 ### 3.2 The seven reviews, and the order the screens come in
 

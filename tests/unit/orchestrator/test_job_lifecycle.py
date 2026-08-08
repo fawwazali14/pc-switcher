@@ -25,6 +25,7 @@ from pcswitcher.jobs.base import SyncJob
 from pcswitcher.models import (
     Host,
     JobResult,
+    JobSkipped,
     JobStatus,
     ProgressUpdate,
     SyncAbortedByUser,
@@ -32,10 +33,12 @@ from pcswitcher.models import (
     ValidationError,
 )
 from pcswitcher.orchestrator import (
+    Orchestrator,
     _failure_already_logged,
     _mark_failure_logged,
     _unwrap_taskgroup_error,
 )
+from tests.unit.jobs.test_package_sync_core import make_context
 
 
 class MockSyncJob(SyncJob):
@@ -176,6 +179,56 @@ class TestFR044OrchestratorForwardsProgress:
         assert second_event.display_name == "Progress job"
         assert second_event.update.percent == 100
         assert second_event.update.item == "Complete"
+
+
+class _UiWatchingJob(SyncJob):
+    """Records what the orchestrator told the UI before this job's own body ran — the state
+    the screen is in when the job puts its first question.
+    """
+
+    name = "ui_watching_job"
+    display_name = "UI watching job"
+
+    def __init__(self, context: JobContext, ui: MagicMock, skip: bool = False) -> None:
+        super().__init__(context)
+        self._ui = ui
+        self._skip = skip
+        self.ui_calls_before_body: list[str] = []
+
+    async def validate(self) -> list[ValidationError]:
+        return []
+
+    async def execute(self) -> None:
+        self.ui_calls_before_body = [name for name, _args, _kwargs in self._ui.mock_calls]
+        if self._skip:
+            raise JobSkipped(self.name, "nothing to do")
+
+
+class TestABarExistsFromJobStart:
+    """#288: the job loop opens the bar, so the progress list can never contradict the
+    status line — and closes it, so nothing is left pulsing after the job ended.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_bar_is_opened_before_the_job_can_ask_anything(self, wired_orchestrator: Orchestrator) -> None:
+        ui = cast(MagicMock, wired_orchestrator._ui)  # pyright: ignore[reportPrivateUsage]
+        job = _UiWatchingJob(make_context(), ui)
+
+        await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
+
+        assert "open_job_bar" in job.ui_calls_before_body
+        ui.open_job_bar.assert_called_once_with("ui_watching_job", "UI watching job")
+
+    @pytest.mark.asyncio
+    async def test_a_skipped_job_says_so_on_its_bar_instead_of_pulsing_on(
+        self, wired_orchestrator: Orchestrator
+    ) -> None:
+        ui = cast(MagicMock, wired_orchestrator._ui)  # pyright: ignore[reportPrivateUsage]
+        job = _UiWatchingJob(make_context(), ui, skip=True)
+
+        await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
+
+        ui.close_job_bar.assert_called_once_with("ui_watching_job", "UI watching job", "skipped")
 
 
 class TestFR048LogSyncSummary:

@@ -594,6 +594,66 @@ class TestProgressWhileApplying:
         assert job.timeline == ["progress 100 None"]
 
 
+def _published_phases(context: JobContext) -> list[str | None]:
+    """The `item` of every ProgressEvent published on this context's bus, in order."""
+    bus: MagicMock = context.event_bus  # pyright: ignore[reportAssignmentType]
+    return [call.args[0].update.item for call in bus.publish.call_args_list if isinstance(call.args[0], ProgressEvent)]
+
+
+class _PhaseSnapshotReviewer(FakeReviewer):
+    """Records the phases the job had reported by the time its review was entered — the
+    moment the user reads the progress list and the first question on the same screen.
+    """
+
+    def __init__(self, decisions: dict[str, Decision] | None = None) -> None:
+        super().__init__(decisions)
+        self.context: JobContext | None = None
+        self.phases_at_review: list[str | None] = []
+
+    async def review(self, groups: Sequence[ReviewGroup]) -> ReviewOutcome:
+        assert self.context is not None
+        self.phases_at_review = _published_phases(self.context)
+        return await super().review(groups)
+
+
+class TestProgressBeforeAnythingIsCountable:
+    """#288: a package job's first countable progress is `apply()`'s per-item percentage,
+    a whole review after the job started, so its first question used to arrive with the job
+    absent from the progress list the status line already said was running.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_bar_carries_the_phase_while_planning_and_while_asking(self) -> None:
+        reviewer = _PhaseSnapshotReviewer({"fake:i1": Decision.SKIP_ONCE})
+        context = make_context(reviewer=reviewer)
+        reviewer.context = context
+        job = FakeSyncJob(context, source_items=(FakeItem("i1"),))
+
+        await job.execute()
+
+        assert reviewer.phases_at_review == ["checking both machines", "waiting for your answers"]
+
+    @pytest.mark.asyncio
+    async def test_every_phase_precedes_the_first_percentage(self) -> None:
+        reviewer = _PhaseSnapshotReviewer({"fake:i1": Decision.APPLY})
+        context = make_context(reviewer=reviewer)
+        reviewer.context = context
+        job = FakeSyncJob(context, source_items=(FakeItem("i1"),))
+
+        await job.execute()
+
+        # The trailing entries are `apply()`'s own per-item reports (item label, then None
+        # for the completed bar), which only exist once there is something to count.
+        assert _published_phases(context) == [
+            "checking both machines",
+            "waiting for your answers",
+            "checking both machines",
+            "applying your answers",
+            "fake:i1",
+            None,
+        ]
+
+
 class TestDecisionsReachTheLog:
     """`PKG-FR-LOG-DECISIONS`: the report says what a job did; the log is where the user
     reconstructs why, so every item it presented is named with the answer it got.

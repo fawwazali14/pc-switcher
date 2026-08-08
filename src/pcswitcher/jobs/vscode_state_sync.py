@@ -300,6 +300,9 @@ class VscodeStateSyncJob(SyncJob):
         prefix = "[dry-run] " if self.context.dry_run else ""
         globs = PRESERVE_KEY_GLOBS
 
+        # The bar's first real state: until a DB is found there is nothing to count, and a
+        # job that finds none never reports anything but the 100% of a skip (#288).
+        self._report_progress(ProgressUpdate(heartbeat=True, item="looking for editor state"))
         present = [rel for rel in VSCODE_STATE_HANDLED_RELPATHS if (home / rel).exists()]
         if not present:
             # Not applicable is not synced: no state DB exists to merge, so the job did

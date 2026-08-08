@@ -94,6 +94,15 @@ __all__ = [
 # revision the user asked for overwrites nothing they authored (`PKG-FR-HARMLESS-DEFAULT`).
 SNAP_CHANGE_REVIEW_ACTION = "snap_change"
 
+# The phases a package job passes through before it has anything countable to report
+# (#288). Each pulses the job's bar with what the job is doing, so the bar never sits at a
+# fake 0% through a minute of probing, and the user's first question arrives with the job
+# on screen saying it is waiting for them. The wording never repeats the job — the bar is
+# already labelled with the display name ("Apt packages: checking both machines").
+_PHASE_PROBING = ProgressUpdate(heartbeat=True, item="checking both machines")
+_PHASE_ASKING = ProgressUpdate(heartbeat=True, item="waiting for your answers")
+_PHASE_APPLYING = ProgressUpdate(heartbeat=True, item="applying your answers")
+
 
 def counted(count: int, noun: str, noun_plural: str) -> str:
     """`1 apt package` / `3 apt packages` — a count and the word that agrees with it.
@@ -1074,6 +1083,10 @@ class PackageSyncJob(SyncJob):
         definition: every question precedes every change, and the second round's own groups
         are reviewed through the same injected reviewer as the first's.
 
+        Each step reports its phase (`_PHASE_*`) before entering it, because the first
+        countable progress this job has is `apply()`'s per-item percentage — minutes and a
+        whole review after the job started.
+
         A `plan()` failure propagates unchanged, so the orchestrator's per-job exception
         handling attributes it to this job's own `JobResult`.
 
@@ -1114,8 +1127,11 @@ class PackageSyncJob(SyncJob):
             "through JobContext.reviewer before execute()."
         )
         policy = self.context.review_policy if self.context.review_policy is not None else ReviewPolicy()
+        self._report_progress(_PHASE_PROBING)
         plan = await self.plan()
+        self._report_progress(_PHASE_ASKING)
         outcome = await self.context.reviewer.review(plan.groups)
+        self._report_progress(_PHASE_PROBING)
         second = await self.plan_second_round(plan, outcome)
         groups = (*plan.groups, *second.groups)
         answered_by_policy = policy_answers_any(groups, policy)
@@ -1125,9 +1141,11 @@ class PackageSyncJob(SyncJob):
                 f"non-interactive run left every {self.item_noun} review item undecided",
             )
         if second.groups:
+            self._report_progress(_PHASE_ASKING)
             outcome = _merge_rounds(outcome, await self.context.reviewer.review(second.groups))
         plan = PackagePlan(manager=plan.manager, diffs=second.diffs, groups=groups)
         self.accept_review(plan, outcome)
+        self._report_progress(_PHASE_APPLYING)
         if outcome.was_interactive or answered_by_policy:
             await self.after_review()
         await self.apply()

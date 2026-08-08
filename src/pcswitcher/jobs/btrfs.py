@@ -12,7 +12,7 @@ from pcswitcher.btrfs_snapshots import (
 )
 from pcswitcher.jobs.base import SystemJob
 from pcswitcher.jobs.context import JobContext
-from pcswitcher.models import Host, LogLevel, SnapshotPhase
+from pcswitcher.models import Host, LogLevel, ProgressUpdate, SnapshotPhase
 
 if TYPE_CHECKING:
     from pcswitcher.models import ValidationError
@@ -135,6 +135,11 @@ class BtrfsSnapshotJob(SystemJob):
             session_id=self.context.session_id,
         )
 
+        # One bar for the job, pulsing on the machine it is snapshotting: a handful of
+        # instant subvolume snapshots per host is not worth a percentage, but the job must
+        # be visible for as long as it runs (#288).
+        self._report_progress(ProgressUpdate(heartbeat=True, item=f"snapshotting {self.context.source_hostname}"))
+
         # The session folder holds every subvolume's snapshot, so it is created once per host
         # instead of once per snapshot: the repeats can only be no-ops, and each one is another
         # stop under --confirm-each-command.
@@ -175,6 +180,8 @@ class BtrfsSnapshotJob(SystemJob):
                 LogLevel.FULL,
                 f"Successfully created snapshot {snap_name}",
             )
+
+        self._report_progress(ProgressUpdate(heartbeat=True, item=f"snapshotting {self.context.target_hostname}"))
 
         if not self.context.dry_run:
             await self.target.run_command(

@@ -68,6 +68,10 @@ class TerminalUI:
             expand=True,
         )
         self._job_tasks: dict[str, TaskID] = {}
+        # Jobs whose bar was opened by the orchestrator and that have not reported
+        # anything of their own yet — see open_job_bar for why the bar is handed over
+        # rather than kept beside the job's real ones.
+        self._untaken_bars: set[str] = set()
 
         # Log panel
         self._log_panel: deque[str] = deque(maxlen=max_log_lines)
@@ -280,6 +284,47 @@ class TerminalUI:
         """
         self._progress._tasks[task_id].total = None  # pyright: ignore[reportPrivateUsage]
 
+    def open_job_bar(self, job: str, display_name: str) -> None:
+        """Give a job a pulsing bar the moment it starts, before it reports anything.
+
+        A job's own first `ProgressUpdate` can be minutes away — a package job plans and
+        reviews before it applies anything — so without this its first question arrives
+        while the progress list still shows only the jobs that already finished, flatly
+        contradicting the status line (#288).
+
+        The bar pulses on a generic phase rather than sitting at 0%: a bar parked at 0%
+        through a minute of probing reads as hung, which is the defect, not the fix. The
+        job's own first phase replaces the generic one within milliseconds.
+
+        The bar is a placeholder the job's first own update TAKES OVER, whatever `track`
+        that update carries, so a job whose work is tracked per unit (folder_sync, one
+        bar per folder) does not end up with an idle extra bar beside its real ones.
+
+        Args:
+            job: Job identifier (the `name` ClassVar)
+            display_name: Human-readable job name for the bar label
+        """
+        self.update_job_progress(job, ProgressUpdate(heartbeat=True, item="starting"), display_name)
+        self._untaken_bars.add(job)
+
+    def close_job_bar(self, job: str, display_name: str, item: str | None = None) -> None:
+        """Finish a job's own bar when the job ends, so nothing is left pulsing.
+
+        Opening a bar at job start creates the obligation to close it: a job that skips
+        or fails without ever reaching 100% would otherwise pulse for the rest of the run
+        and read as still working. Only the job's OWN (trackless) bar is touched —
+        per-track bars are left exactly as the job left them, each already at its own
+        final state.
+
+        Args:
+            job: Job identifier (the `name` ClassVar)
+            display_name: Human-readable job name for the bar label
+            item: Outcome word for the description ("skipped", "failed"); None for a
+                plain finished bar.
+        """
+        if job in self._job_tasks:
+            self.update_job_progress(job, ProgressUpdate(percent=100, item=item), display_name)
+
     def update_job_progress(
         self,
         job: str,
@@ -308,6 +353,13 @@ class TerminalUI:
         key = job if update.track is None else f"{job}\x00{update.track}"
         label = escape(display_name if display_name is not None else job)
         item = escape(update.item) if update.item else None
+
+        # First update from a job whose bar the orchestrator opened: that bar is this
+        # job's, so a tracked first update re-keys it rather than adding a second one.
+        if job in self._untaken_bars:
+            self._untaken_bars.discard(job)
+            if key != job and key not in self._job_tasks:
+                self._job_tasks[key] = self._job_tasks.pop(job)
 
         # Create task if it doesn't exist
         if key not in self._job_tasks:
@@ -356,9 +408,12 @@ class TerminalUI:
                 completed=update.current,
                 description=description,
             )
-        elif update.heartbeat:
+        elif update.heartbeat or item:
             # Activity only, no countable unit yet (e.g. rsync building its file list
-            # emits nothing at all): pulse the bar rather than leave it parked at 0%.
+            # emits nothing at all, a package job probing both machines has nothing to
+            # count): pulse the bar rather than leave it parked at 0%. An update
+            # carrying only `item` lands here too — a phase with no number is exactly
+            # this state, and matching no branch used to drop the text silently.
             description = f"[cyan]{label}[/cyan]"
             if item:
                 description += f": {item}"
