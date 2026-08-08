@@ -1708,18 +1708,17 @@ async def _review_decision_group(  # noqa: PLR0913 - one screen's content plus t
         )
 
 
-# The keys of the follow-up screen's three answers. Letters rather than the hostnames' own
-# initials: two machines can share one, an initial can be `a` (Abort's letter, which
-# `decision_list` rejects) or not a lowercase letter at all. They name the two ROLES the
-# screen itself already shows — source and target — rather than "here" and "other", which
-# are the code's frame and depend on which end the run was launched from.
+# The keys of the follow-up screen's three answers. The two machines are numbered in the
+# order the screen lists them, so `<1>` is the first hostname on the block and `<2>` the
+# second — which reads the same for any pair of hostnames. Neither an initial (two machines
+# can share one, and one can be `a`, Abort's letter, which `decision_list` rejects) nor a
+# role letter: `s` is `skip now` everywhere else, and one keystroke a line above its own
+# question must not mean two things. `b` for `both`, the answer that names no machine.
 #
-# `s` is `skip now` on every other screen, and that collision is DELIBERATE: this screen
-# has no skip — every answer here is recorded — so no single key ever means two things in
-# one place, and the alternative was a key with no relation to anything on screen. Do not
-# "fix" it by moving the source off `s`.
-_MARK_SOURCE_KEY = "s"
-_MARK_TARGET_KEY = "t"
+# A digit is its own uppercase, so `decision_list` binds it to the focused row alone and
+# leaves the bulk gesture off this screen's legend.
+_MARK_SOURCE_KEY = "1"
+_MARK_TARGET_KEY = "2"
 _MARK_BOTH_KEY = "b"
 
 # Left half / right half / whole. Which side of the pair the answer keeps is the whole

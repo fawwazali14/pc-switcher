@@ -327,7 +327,8 @@ def legend(options: Sequence[DecisionOption], *, width: int = 0, every_row_requi
     The editing keys stay packed on one line and up/down is not among them: a list with a
     pointer on it does not need to be told it can be moved. Ctrl-C still aborts and is also
     unlisted — a legend is what to do with the screen in front of you, and offering "abandon
-    the sync" beside the answers gives an escape equal billing with the decision.
+    the sync" beside the answers gives an escape equal billing with the decision. The bulk
+    gesture is listed only on a screen whose keys all have a shifted form.
 
     `width` wraps: an answer's hint continues under itself, and the editing keys break
     BETWEEN entries (left to the terminal that wrap lands mid-phrase, "shift+key sets /
@@ -360,7 +361,13 @@ def legend(options: Sequence[DecisionOption], *, width: int = 0, every_row_requi
             lines.append(answer)
 
     confirm = "<enter> confirm, once every row is answered" if every_row_required else "<enter> confirm"
-    editing = ["<space> cycles", "<shift+key> sets every row", confirm]
+    editing = ["<space> cycles"]
+    # The bulk gesture is listed only where EVERY key has a shifted form. A digit is its own
+    # uppercase, so it answers the focused row alone; naming "shift+key" beside a set of
+    # answers only some of which have one promises a gesture the screen does not offer.
+    if all(option.key.upper() != option.key for option in options):
+        editing.append("<shift+key> sets every row")
+    editing.append(confirm)
     if width <= 0:
         return "\n".join([*lines, _LEGEND_SEPARATOR.join(editing)])
 
@@ -434,8 +441,8 @@ def _validate(rows: Sequence[DecisionRow], options: Sequence[DecisionOption]) ->
         raise ValueError(f"decision keys must be unique, got {keys}")
     if FORBIDDEN_KEY in keys:
         raise ValueError(f"{FORBIDDEN_KEY!r} is conventionally abort and cannot set a decision")
-    if any(len(key) != 1 or not key.islower() for key in keys):
-        raise ValueError(f"decision keys must be single lowercase letters, got {keys}")
+    if any(len(key) != 1 or not (key.islower() or key.isdigit()) for key in keys):
+        raise ValueError(f"decision keys must be single lowercase letters or digits, got {keys}")
     values = {option.value for option in options}
     if UNANSWERED in values:
         raise ValueError(f"{UNANSWERED!r} marks a row nobody has answered and cannot be an answer")
@@ -571,7 +578,12 @@ def decision_list(
 
     for option in options:
         bindings.add(option.key, eager=True)(_setter(option.value))
-        bindings.add(option.key.upper(), eager=True)(_set_all(option.value))
+        # A key that is its own uppercase — a digit — is registered ONCE, as the single-row
+        # answer. Registering it again as the bulk answer binds the same keystroke twice,
+        # and the second registration would take it: pressing the key would set every row
+        # instead of the focused one.
+        if option.key.upper() != option.key:
+            bindings.add(option.key.upper(), eager=True)(_set_all(option.value))
 
     def _cycle(_event: KeyPressEvent) -> None:
         """Step the focused row through the options, for a user who has not read the legend.

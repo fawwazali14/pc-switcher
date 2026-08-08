@@ -2546,7 +2546,7 @@ class TestAptConfigOverwriteScreen:
 
 @pytest.mark.asyncio
 class TestTheMachineSpecificFollowUp:
-    """#278 — the screen's keys name the machines it shows, and nothing on it is
+    """#278 — the screen's keys index the machines it shows, and nothing on it is
     pre-answered (`PKG-FR-MARK-SIDE`, `PKG-FR-HARMLESS-DEFAULT`)."""
 
     @staticmethod
@@ -2564,23 +2564,25 @@ class TestTheMachineSpecificFollowUp:
             await review_items([_apt_config_group([_apt_config_entry()])], console=console, ui=MagicMock(), **HOSTS)
         return decision_list.call_args_list[1]
 
-    async def test_the_keys_name_the_machines_the_screen_shows(self) -> None:
-        """H260 — the keys name what the column already shows. "Here" and "other" are the
-        code's frame, and which machine is which depends on the end the run was launched
-        from."""
+    async def test_the_keys_number_the_machines_in_the_order_the_screen_lists_them(self) -> None:
+        """H260 — the digits index the two machines as the block lists them, which reads the
+        same for any pair of hostnames. An initial can collide between machines; a role
+        letter is the code's frame and depends on the end the run was launched from."""
         call = await self._follow_up_call()
 
-        assert _screen_keys(call) == ["s", "t", "b"]
+        assert _screen_keys(call) == ["1", "2", "b"]
         assert _screen_words(call) == ["atlas", "nomad", "both"]
 
-    async def test_the_source_key_is_the_skip_key_of_every_other_screen_and_this_one_has_no_skip(self) -> None:
-        """H260 — the collision is accepted deliberately: no single key means two things in
-        one place, because this screen offers no skip at all; every answer here is
-        recorded."""
+    async def test_no_key_here_means_something_else_on_another_screen(self) -> None:
+        """H260 — the follow-up now renders one keystroke below the item's own question, so a
+        key that answers `skip now` there must not answer a machine here. Digits answer
+        nothing anywhere else, and `b` is spent on no other screen."""
         call = await self._follow_up_call()
 
         assert SKIP_NOW_WORD not in _screen_words(call)
         assert all(option.is_permanent for option in call.kwargs["options"])
+        # `y`, `s` and `x` are the act, skip-now and permanent keys of every item screen.
+        assert not {"y", "s", "x"} & set(_screen_keys(call))
 
     async def test_no_row_starts_answered(self) -> None:
         """H258 — neither machine is the holder by right (that is why the screen exists) and

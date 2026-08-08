@@ -89,7 +89,7 @@ A question freezes the live display above itself, so you can see where the run i
 
 Choosing `x` marks the item as belonging to *this specific machine*. The mark is written on the **holding machine** (the one whose copy the answer keeps) and never synced.
 
-Where both machines have the item and their copies differ, a follow-up screen asks whose own version this is — one machine, the other, or both — straight after you answer that item, while its two versions are still on screen above. The keys are `s` for the source machine, `t` for the target and `b` for both, and the column shows the two hostnames. Naming both records one on each, so the answer survives either machine losing its copy.
+Where both machines have the item and their copies differ, a follow-up screen asks whose own version this is — one machine, the other, or both — straight after you answer that item, while its two versions are still on screen above. The keys number the machines as the screen lists them — `1` for the first hostname, `2` for the second, `b` for both — and the column shows the two hostnames. Naming both records one on each, so the answer survives either machine losing its copy.
 
 It is the one screen that starts on no answer at all. `<enter>` does nothing until its row has a key, and says so — neither machine is the holder by right, and the record it writes is permanent.
 
