@@ -2020,6 +2020,7 @@ def _conflict_group(entries: Sequence[ReviewEntry]) -> ReviewGroup:
         action=REPO_CONFLICT_REVIEW_ACTION,
         title="Resolve apt repository conflicts",
         entries=tuple(entries),
+        item_noun="apt repository file",
     )
 
 
@@ -2110,7 +2111,8 @@ class TestRepoConflictGroupResolution:
 
     async def test_both_whole_versions_are_shown_and_no_unified_diff(self) -> None:
         """C29, H94 — The user's own words: a diff of two repository definitions is not readable. The
-        target's current file comes first, then the source's, each whole.
+        source's file comes first — it is the one the screen proposes — then the target's,
+        each whole.
         """
         console, out = captured_console(terminal=True)
         ui = MagicMock()
@@ -2129,13 +2131,13 @@ class TestRepoConflictGroupResolution:
         printed = out.getvalue()
         assert "old.example.com" in printed
         assert "new.example.com" in printed
-        assert printed.index("old.example.com") < printed.index("new.example.com")
+        assert printed.index("new.example.com") < printed.index("old.example.com")
         assert "@@" not in printed and "\n-deb" not in printed
 
     async def test_each_version_panel_is_titled_with_the_machine_that_holds_it(self) -> None:
         """C30, H65 — The user's ruling: no screen says "the target". The two panels are titled with the
-        two machines' own names, and the target's says "now" because it is the one an
-        overwrite would replace.
+        two machines' own names, and the target's says what this screen's own act would do
+        to the copy it holds — overwrite it, which is the word beside the key.
         """
         console, out = captured_console(terminal=True)
         ui = MagicMock()
@@ -2148,10 +2150,27 @@ class TestRepoConflictGroupResolution:
             await review_items([_conflict_group([_conflict_entry()])], console=console, ui=ui, **HOSTS)
 
         printed = out.getvalue()
-        assert "On nomad now" in printed
         assert "On atlas" in printed
+        assert "On nomad now, would be overwritten by atlas version above" in printed
         assert "the target" not in printed
         assert "the source" not in printed
+
+    async def test_the_question_names_the_file_and_the_heading_names_what_it_is(self) -> None:
+        """C186 — one row is on screen, so a title naming the group reads as an offer to
+        answer for all of them at once (#277). The heading above the panels carries the
+        noun; the question carries the file and the verb."""
+        console, out = captured_console(terminal=True)
+        ui = MagicMock()
+        screen = _fake_prompt(ask_return={"apt:conflict:vendor.list": "skip_once"})
+
+        with (
+            patch.object(sys, "stdin", _mock_isatty(True)),
+            patch("pcswitcher.jobs.packages.review.decision_list", return_value=screen) as decision_list,
+        ):
+            await review_items([_conflict_group([_conflict_entry()])], console=console, ui=ui, **HOSTS)
+
+        assert decision_list.call_args.args[0] == "Overwrite vendor.list on nomad?"
+        assert "apt repository file vendor.list" in out.getvalue()
 
     async def test_a_version_panel_ends_on_its_last_line_of_content(self) -> None:
         """A file body's own trailing newline renders as an empty last line inside the
@@ -2246,6 +2265,7 @@ def _apt_config_group(entries: Sequence[ReviewEntry]) -> ReviewGroup:
         title="Update apt configuration files on nomad?",
         entries=tuple(entries),
         overwrites_authored_content=True,
+        item_noun="apt configuration file",
     )
 
 
@@ -2290,10 +2310,29 @@ class TestAptConfigOverwriteScreen:
 
         printed = out.getvalue()
         assert [len(call.kwargs["rows"]) for call in decision_list.call_args_list[:2]] == [1, 1]
-        assert printed.index('"true"') < printed.index('"false"'), "the target's copy leads; it is what is replaced"
-        assert "On nomad now" in printed
-        assert "On atlas — would replace it" in printed
+        assert printed.index('"false"') < printed.index('"true"'), "the source's copy leads; it is what is proposed"
+        assert "On atlas" in printed
+        assert "On nomad now, would be updated by atlas version above" in printed
         assert outcome.decisions["apt:config:98-other"] == Decision.APPLY
+
+    async def test_the_question_names_the_file_and_the_heading_names_what_it_is(self) -> None:
+        """C186 — `Update apt configuration files on nomad?` over a single row read as an
+        offer to answer for all of them at once (#277). The heading carries the noun, the
+        question carries the file."""
+        console, out = captured_console(terminal=True)
+        ui = MagicMock()
+        screen = _fake_prompt(ask_return={"apt:config:99-pcsw-uat": "skip_once"})
+
+        with (
+            patch.object(sys, "stdin", _mock_isatty(True)),
+            patch("pcswitcher.jobs.packages.review.decision_list", return_value=screen) as decision_list,
+        ):
+            await review_items([_apt_config_group([_apt_config_entry()])], console=console, ui=ui, **HOSTS)
+
+        printed = out.getvalue()
+        assert decision_list.call_args.args[0] == "Update 99-pcsw-uat on nomad?"
+        assert "apt configuration file 99-pcsw-uat" in printed
+        assert printed.index("apt configuration file 99-pcsw-uat") < printed.index('"false"')
 
     async def test_the_permanent_answer_survives_the_move_to_the_two_panel_screen(self) -> None:
         """C182 — this file is still the one apt item a user can settle for good, and its row
@@ -2376,8 +2415,8 @@ class TestAptConfigOverwriteScreen:
         # Once for the decision screen, once above the follow-up's table.
         assert printed.count('"true"') == 2
         assert printed.count('"false"') == 2
-        # Nothing is being replaced any more — the overwrite was declined for good.
-        assert printed.count("would replace it") == 1
+        # Nothing is being updated any more — the overwrite was declined for good.
+        assert printed.count("would be updated by") == 1
         assert outcome.mark_sides == {"apt:config:99-pcsw-uat": MarkSide.BOTH}
 
 

@@ -102,10 +102,11 @@ GROUPS = [
             )
         ],
         overwrites_authored_content=True,
+        item_noun="apt configuration file",
     ),
-    # TWO conflicting files, because one screen answers a whole batch and the shape of that
-    # is the thing a rehearsal has to show: both files' versions are printed first, in pairs,
-    # and the single screen underneath carries a row per file.
+    # TWO conflicting files, so the rehearsal shows the pair of screens a second file
+    # produces: each is headed, printed as both versions and answered on its own, and its
+    # panel says "overwritten" where the configuration file above says "updated".
     ReviewGroup(
         "apt",
         REPO_CONFLICT_REVIEW_ACTION,
@@ -136,6 +137,7 @@ GROUPS = [
                 ),
             ),
         ],
+        item_noun="apt repository file",
     ),
     ReviewGroup(
         "apt",

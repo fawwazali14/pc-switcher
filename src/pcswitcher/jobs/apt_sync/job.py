@@ -795,6 +795,9 @@ class AptSyncJob(PackageSyncJob):
             manager=self.manager_id,
             action=REPO_CONFLICT_REVIEW_ACTION,
             title=change_title("resolve", "apt repository conflicts", self.machines.target),
+            # What one entry IS, for the heading each file's own screen opens on. The
+            # flatpak conflict carries none: its labels already read "<name> remote (user)".
+            item_noun="apt repository file",
             entries=tuple(
                 ReviewEntry(
                     item_id=f"{CONFLICT_ID_PREFIX}{filename}",

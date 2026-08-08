@@ -92,7 +92,9 @@ entry carrying `ReviewEntry.content` prints that whole file first: a pin file's 
 nothing about what it does, and its name is all a decision row can show.
 
 A `ReviewGroup` whose entries carry `ReviewEntry.versions` is resolved one entry at a time,
-each preceded by both machines' whole versions of it — never a unified diff. Two groups take
+each headed by what the entry is and then by both machines' whole versions of it — the
+source's first, since that is the copy the screen proposes — and never a unified diff. The
+question names the entry, not the group: one row is on screen. Two groups take
 that shape. `REPO_CONFLICT_REVIEW_ACTION` (`PKG-FR-REPO-CONFLICT`) is the two-answer one:
 something that differs on the two machines and feeds an item the target recorded
 machine-specific — a repository file for `apt_sync`, a remote for `flatpak_sync` — answered
@@ -1018,25 +1020,55 @@ def _file_body(body: str) -> Text:
     return shown
 
 
-def _print_both_versions(
-    entry: ReviewEntry, *, console: Console, source_hostname: str, target_hostname: str, replacing: bool
-) -> None:
-    """Print one entry's two whole versions, the target's first, under its own name.
+def _print_subject(console: Console, *, noun: str, label: str) -> None:
+    """The heading a screen with evidence opens on: what this screen is about, before the
+    thing itself and before the question (#287).
 
-    The target's copy leads because it is the one an approval would replace. `replacing`
-    says whether an approval is still on the table: on a decision screen the source's panel
-    states what its answer would do, which is what makes the row's skip-once start legible
-    rather than arbitrary (`_default_decision`, `PKG-FR-HARMLESS-DEFAULT`). The
-    machine-specific follow-up passes False — nothing there replaces anything, the overwrite
-    having already been declined for good, and a panel saying otherwise would contradict the
-    answer the user just gave.
+    A panel arriving first left the user reading a file body with no idea yet why it was on
+    screen. The noun is the group's own singular word for one of its entries, so the heading
+    reads "apt configuration file 99-pcsw-uat" rather than a bare filename; a group that
+    carries none — one whose labels already say what they are — prints the label alone.
+    """
+    console.print()
+    console.print(Text(f"{noun} {label}" if noun else label, style="bold"))
+
+
+def _print_both_versions(
+    entry: ReviewEntry, *, console: Console, source_hostname: str, target_hostname: str, replacement: str | None
+) -> None:
+    """Print one entry's two whole versions, the SOURCE's first, under the heading naming it.
+
+    Source first because it is the one the screen proposes: the question is whether that
+    version travels, and the target's panel is what the answer would spend. `replacement`
+    is what an approval would do to the target's copy, said on the target's own panel — the
+    screen's own act, since "would be updated by" and "would be overwritten by" are two
+    different offers (`_replacement_phrase`). That is what makes the row's skip-once start
+    legible rather than arbitrary (`_default_decision`, `PKG-FR-HARMLESS-DEFAULT`).
+
+    `None` where nothing is on the table any more: the machine-specific follow-up prints the
+    same pair after the overwrite has been declined for good, and a panel saying otherwise
+    would contradict the answer the user just gave.
     """
     if entry.versions is None:
         return
     target_version, source_version = entry.versions
-    source_title = f"On {source_hostname} — would replace it" if replacing else f"On {source_hostname}"
-    console.print(Panel(_file_body(target_version), title=Text(f"On {target_hostname} now"), border_style="yellow"))
-    console.print(Panel(_file_body(source_version), title=Text(source_title), border_style="cyan"))
+    target_title = f"On {target_hostname} now, {replacement}" if replacement else f"On {target_hostname} now"
+    console.print(Panel(_file_body(source_version), title=Text(f"On {source_hostname}"), border_style="cyan"))
+    console.print(Panel(_file_body(target_version), title=Text(target_title), border_style="yellow"))
+
+
+def _replacement_phrase(group: ReviewGroup, source_hostname: str) -> str:
+    """What the target's panel says the screen's act would do to the copy it holds.
+
+    Two groups reach the two-panel screen and they offer different things. The ordinary
+    `apt.conf.d` CHANGE converges the file, which is an update, and its answers are update /
+    skip now / never update. The repository and remote conflicts
+    (`PKG-FR-REPO-CONFLICT`/`PKG-FR-FLATPAK-REPOINT`) ask consent to displace something the
+    target marked machine-specific, and their two answers are overwrite / skip now — so the
+    panel says overwrite, matching the word the user is about to press a key for.
+    """
+    verb = "overwritten" if _is_repo_conflict_group(group.action) else "updated"
+    return f"would be {verb} by {source_hostname} version above"
 
 
 def _render_group_panel(group: ReviewGroup) -> Panel:
@@ -1759,7 +1791,7 @@ async def _ask_mark_sides(
             console=console,
             source_hostname=source_hostname,
             target_hostname=target_hostname,
-            replacing=False,
+            replacement=None,
         )
 
     prompt = decision_list(
@@ -1959,23 +1991,33 @@ async def _review_two_version_group(
     (`_default_decision`): one displaces software the target marked machine-specific, the
     other replaces content that machine's user authored.
 
+    The title names the ENTRY, not the group: one row is on screen, and "Update apt
+    configuration files on nomad?" over it reads as an offer to answer for all of them at
+    once (#277). The heading above the panels carries the noun, so the title carries the
+    file and the verb alone.
+
     Every untrusted string — the filename, the detail, and both file bodies — is wrapped in
     `Text` before it reaches the console, so a bracketed line inside a configuration file
     cannot trigger the Rich markup crash (T-02-02).
     """
     options = _options_for(group, source_hostname=source_hostname, target_hostname=target_hostname)
+    replacement = _replacement_phrase(group, source_hostname)
     for entry in group.entries:
-        console.print()
-        console.print(Text(entry.label, style="bold"))
+        _print_subject(console, noun=group.item_noun, label=entry.label)
         _print_both_versions(
             entry,
             console=console,
             source_hostname=source_hostname,
             target_hostname=target_hostname,
-            replacing=True,
+            replacement=replacement,
         )
         decisions[entry.item_id] = Decision(
-            await _ask_about_one_item(entry, title=group.title, options=options, default=_default_decision(group))
+            await _ask_about_one_item(
+                entry,
+                title=change_title(entry.action_label, entry.label, target_hostname),
+                options=options,
+                default=_default_decision(group),
+            )
         )
 
 

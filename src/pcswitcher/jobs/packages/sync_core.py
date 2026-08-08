@@ -214,6 +214,13 @@ _ITEM_CLASS_NOUN: dict[ItemClass, str] = {
     ItemClass.APT_CONFIG: "apt configuration files",
 }
 
+# The same noun in the singular, for the screens that head each ENTRY with what it is
+# ("apt configuration file 99-pcsw-uat", #277). Spelled out rather than derived from the
+# plural for `RemovalVocabulary`'s reason: an English plural does not reverse by rule.
+_ITEM_CLASS_NOUN_SINGULAR: dict[ItemClass, str] = {
+    ItemClass.APT_CONFIG: "apt configuration file",
+}
+
 # The `ReviewGroup.action` a given (item_class, action) pair asks under, where the raw
 # `DiffAction` value would offer the wrong set of answers. One entry today.
 _GROUP_ACTION: dict[tuple[ItemClass, DiffAction], str] = {
@@ -596,7 +603,9 @@ class PackageSyncJob(SyncJob):
         so the one reviewed class that is not the job's own software — `/etc/apt/apt.conf.d`
         — is not announced as it, and by `_ACTION_CLASS_NOUN` where one action's group is
         about something narrower than the class itself (a snap CHANGE moves versions, not
-        snaps). `change_title` puts the target machine in every one of them
+        snaps). `item_noun` is the same noun in the singular, which the screens that head
+        each entry with what it is print above the evidence.
+        `change_title` puts the target machine in every one of them
         (`PKG-FR-NAME-THE-MACHINES`); a report-only group names no machine and asks nothing,
         so it keeps its own shape. Grouping by
         item class as well as action is what keeps that verb correct when one action mixes
@@ -672,6 +681,7 @@ class PackageSyncJob(SyncJob):
                         # A snap moved to another revision or channel does not: converging
                         # software the user asked for overwrites nothing they authored.
                         overwrites_authored_content=item_class is ItemClass.APT_CONFIG and action is DiffAction.CHANGE,
+                        item_noun=_ITEM_CLASS_NOUN_SINGULAR.get(item_class, self.item_noun),
                         entries=tuple(
                             ReviewEntry(
                                 item_id=diff.item_id,
