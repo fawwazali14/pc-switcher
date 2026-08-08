@@ -1047,7 +1047,7 @@ def _file_body(body: str) -> Text:
 
 def _print_subject(console: Console, *, noun: str, label: str) -> None:
     """The heading a screen with evidence opens on: what this screen is about, before the
-    thing itself and before the question (#287).
+    thing itself and before the question (`PKG-FR-SUBJECT-FIRST`, #287).
 
     A panel arriving first left the user reading a file body with no idea yet why it was on
     screen. The noun is the group's own singular word for one of its entries, so the heading

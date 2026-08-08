@@ -1407,7 +1407,7 @@ apt only. A snippet on record for a package apt can install too fits two reading
 | H31 | A removal item is declined for this run, and the same item approved on the next. | Nomad keeps the package through the first run and loses it in the second — the decline was a decision, not a deferral. | V | `test_package_sync:TestSkipAlwaysIsInertInBothRoles::test_a_recorded_skip_always_survives_a_forced_apply_in_either_direction` |
 | H32 | An already-converged pair is synced. | Zero diffs, zero groups, zero converges, and no command carrying `mutates=`. | U V | `test_package_sync_core:TestIdempotency::test_identical_source_and_target_produce_no_diff_no_group_and_no_mutation`; `test_end_to_end_sync:TestEndToEndSync::test_full_sync_pipeline_both_directions` |
 
-### H.3 What batching permits and forbids (articles: PKG-FR-BATCHED, PKG-FR-ASK-AGAIN)
+### H.3 What batching permits and forbids (articles: PKG-FR-BATCHED, PKG-FR-ASK-AGAIN, PKG-FR-SUBJECT-FIRST)
 
 | # | Scenario | Expected | Cov | Test |
 | --- | --- | --- | --- | --- |
