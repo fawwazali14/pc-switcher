@@ -83,9 +83,9 @@ GROUPS = [
         note=f"These converge on their own: run `sudo apt update && sudo apt upgrade` on {TARGET_HOST}.",
     ),
     # The other two-panel screen, and the only one whose answer can be permanent: answering
-    # `never update` here raises the machine-specific follow-up, which reprints these same
-    # two bodies above its table. Rehearsed because that pair of screens is the one route to
-    # a recorded answer about a file, and neither can be read from a filename.
+    # `never update` here raises the machine-specific follow-up straight away, with these two
+    # bodies still above it. Rehearsed because that pair of screens is the one route to a
+    # recorded answer about a file, and neither can be read from a filename.
     ReviewGroup(
         "apt",
         "change",

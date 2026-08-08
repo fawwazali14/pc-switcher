@@ -41,18 +41,19 @@ treat the item as specific to one machine, which makes it inert here in both rol
 Those are the decisions; what each screen CALLS them is `_options_for` and the hints beside
 them, which say the act, the machine it happens to, and how long the answer lasts.
 
-One follow-up question comes after the batch, and only there: an item BOTH machines have
-with different content has no holding machine the run's own direction can name, so "keep for
-good" on one of those leaves open whose copy the answer is about (`PKG-FR-MARK-SIDE`). Every
-such item answered that way goes onto one further screen — a row each, three answers naming
-the two machines and both — and the chosen `MarkSide` comes back in
-`ReviewOutcome.mark_sides` for `PackageSyncJob._record_permanent_skips` to write on. It is
-one batched screen because the widget takes any number of answers per row, and it is a
-follow-up rather than a fourth answer on the batch because the question only exists for the
-rows that were answered permanently. A run that reaches no such answer never sees it, and a
-run with nobody to ask never gets that far. It is also the one screen that starts on no
-answer at all and refuses `<enter>` until every row has one: neither machine is the holder
-by right, so there is nothing harmless to default to.
+One follow-up question comes per item, immediately after the answer that raises it: an item
+BOTH machines have with different content has no holding machine the run's own direction can
+name, so "keep for good" on one of those leaves open whose copy the answer is about
+(`PKG-FR-MARK-SIDE`). Each such item gets its own further screen — one row, three answers
+naming the two machines and both — and the chosen `MarkSide` comes back in
+`ReviewOutcome.mark_sides` for `PackageSyncJob._record_permanent_skips` to write on. It goes
+directly under the item's own screen because that is where the two versions it has to be
+read off are; collected into one screen at the end it arrived once every one of them had
+scrolled away. It is a follow-up rather than a fourth answer on the item's screen because
+the question only exists where the answer was permanent. A run that reaches no such answer
+never sees it, and a run with nobody to ask never gets that far. It is also the one screen
+that starts on no answer at all and refuses `<enter>` until its row has one: neither machine
+is the holder by right, so there is nothing harmless to default to.
 A `REPORT_ONLY` group is not answerable at all: nothing converges either way and no machine
 holds an informational item, so `_print_report_group` prints it and the review moves on.
 
@@ -1034,7 +1035,7 @@ def _print_subject(console: Console, *, noun: str, label: str) -> None:
 
 
 def _print_both_versions(
-    entry: ReviewEntry, *, console: Console, source_hostname: str, target_hostname: str, replacement: str | None
+    entry: ReviewEntry, *, console: Console, source_hostname: str, target_hostname: str, replacement: str
 ) -> None:
     """Print one entry's two whole versions, the SOURCE's first, under the heading naming it.
 
@@ -1044,15 +1045,11 @@ def _print_both_versions(
     screen's own act, since "would be updated by" and "would be overwritten by" are two
     different offers (`_replacement_phrase`). That is what makes the row's skip-once start
     legible rather than arbitrary (`_default_decision`, `PKG-FR-HARMLESS-DEFAULT`).
-
-    `None` where nothing is on the table any more: the machine-specific follow-up prints the
-    same pair after the overwrite has been declined for good, and a panel saying otherwise
-    would contradict the answer the user just gave.
     """
     if entry.versions is None:
         return
     target_version, source_version = entry.versions
-    target_title = f"On {target_hostname} now, {replacement}" if replacement else f"On {target_hostname} now"
+    target_title = f"On {target_hostname} now, {replacement}"
     console.print(Panel(_file_body(source_version), title=Text(f"On {source_hostname}"), border_style="cyan"))
     console.print(Panel(_file_body(target_version), title=Text(target_title), border_style="yellow"))
 
@@ -1623,6 +1620,7 @@ async def _review_decision_group(
     source_hostname: str,
     target_hostname: str,
     decisions: dict[str, Decision],
+    mark_sides: dict[str, MarkSide],
 ) -> None:
     """Present one actionable group as a single screen and record every row's answer.
 
@@ -1652,6 +1650,19 @@ async def _review_decision_group(
 
     for entry in group.entries:
         decisions[entry.item_id] = Decision(answered[entry.item_id])
+
+    # Every row was answered by the one confirm, so each entry's machine-specific follow-up
+    # is put here — in row order, each after the answer that raises it, and only for the
+    # rows that carry the permanent answer (`PKG-FR-MARK-SIDE`).
+    for entry in group.entries:
+        await _mark_side_if_permanent(
+            group,
+            entry,
+            source_hostname=source_hostname,
+            target_hostname=target_hostname,
+            decisions=decisions,
+            mark_sides=mark_sides,
+        )
 
 
 # The keys of the follow-up screen's three answers. Letters rather than the hostnames' own
@@ -1721,43 +1732,28 @@ def _mark_side_options(source_hostname: str, target_hostname: str) -> tuple[Deci
     )
 
 
-def _conflicting_permanent_entries(
-    groups: Sequence[ReviewGroup], decisions: Mapping[str, Decision]
-) -> tuple[ReviewEntry, ...]:
-    """The entries the follow-up is about: conflicting items answered `SKIP_ALWAYS`."""
-    return tuple(
-        entry
-        for group in groups
-        if _is_conflicting_group(group.action)
-        for entry in group.entries
-        if decisions.get(entry.item_id) is Decision.SKIP_ALWAYS
-    )
-
-
-async def _ask_mark_sides(
-    groups: Sequence[ReviewGroup],
+async def _ask_mark_side(
+    entry: ReviewEntry,
     *,
-    console: Console,
     source_hostname: str,
     target_hostname: str,
-    decisions: Mapping[str, Decision],
-) -> dict[str, MarkSide]:
-    """Ask, once and for all of them, whose own copy each permanently-kept conflicting item
-    is (`PKG-FR-MARK-SIDE`).
+) -> MarkSide:
+    """Ask whose own copy ONE permanently-kept conflicting item is (`PKG-FR-MARK-SIDE`).
 
-    One screen, a row per item, three answers per row — the batch `PKG-FR-BATCHED` asks for, and what
-    `decision_list` already supports: it takes any number of options with any values, so
-    nothing about the question forces a screen per item. The two other reasons a package
-    question is asked one at a time do not apply: no answer here opens an editor, and there
-    is nothing to READ before answering that the row's own detail cannot carry.
+    Put immediately after the answer that raises it, on the screen that answer was given
+    on: the item's name and both machines' whole versions of it are directly above, which
+    is what "whose copy is this one" has to be read off — nobody can answer it from a
+    filename. Collected into one screen at the end of the review instead, it arrived once
+    every body it is about had scrolled away, and had to reprint them all to be answerable
+    at all.
 
-    A follow-up rather than a fourth answer on the batch screen, because the question exists
-    only for the rows answered permanently. Folding it in would have put five answers on
+    A follow-up rather than a fourth answer on the item's own screen, because the question
+    exists only where the answer was permanent. Folding it in would have put five answers on
     every conflict row — three of them the same decision under three names — and asked about
     a side on rows that will never have a mark.
 
-    NO row starts answered (`decision_list.UNANSWERED`), and `<enter>` is refused until
-    every one carries a key, naming the rows that do not. This screen exists precisely
+    The row does NOT start answered (`decision_list.UNANSWERED`), and `<enter>` is refused
+    until it carries a key, naming it while it does not. This question exists precisely
     because neither machine is the holder by right, so any default would pick one of the two
     real answers on the user's behalf — and the answer is permanent, deciding which machine
     keeps its copy and how long the mark survives. A confirmed-unread screen must not be
@@ -1766,42 +1762,12 @@ async def _ask_mark_sides(
     it.
 
     Ctrl-C aborts the whole sync like every other screen in the review.
-
-    What the question is about is REPRINTED above the table, per row, in the shape the row's
-    own screen used: the item's name and both machines' whole versions of it. The question
-    is "whose copy is this one", which nobody can answer from a filename, and by the time
-    this screen appears the screen that showed the bodies is off the top of the terminal.
-    They go above the table rather than into a `detail` column because a column cannot hold
-    a file, and the rows stay one batch because `PKG-FR-MARK-SIDE` asks the question once
-    for every such item of a review together. An entry with no bodies to reprint — a
-    subject whose difference was never two files — falls back to its own detail line on the
-    row, as before.
     """
-    entries = _conflicting_permanent_entries(groups, decisions)
-    if not entries:
-        return {}
-
-    for entry in entries:
-        if entry.versions is None:
-            continue
-        console.print()
-        console.print(Text(entry.label, style="bold"))
-        _print_both_versions(
-            entry,
-            console=console,
-            source_hostname=source_hostname,
-            target_hostname=target_hostname,
-            replacement=None,
-        )
-
     prompt = decision_list(
         "Kept for good — whose own version is it?",
-        rows=[
-            DecisionRow(row_id=entry.item_id, label=entry.label, default=UNANSWERED, detail=entry.detail)
-            for entry in entries
-        ],
+        rows=[DecisionRow(row_id=entry.item_id, label=entry.label, default=UNANSWERED, detail=entry.detail)],
         explanation=(
-            f"{source_hostname} and {target_hostname} both have these, with different content, so neither "
+            f"{source_hostname} and {target_hostname} both have this, with different content, so neither "
             "version travels from now on. Naming a machine says whose copy the answer is about, and the "
             "answer lasts as long as that machine still has the item."
         ),
@@ -1809,8 +1775,35 @@ async def _ask_mark_sides(
     )
     answered: Mapping[str, str] | None = await asyncio.to_thread(prompt.ask)
     if answered is None:
-        raise SyncAbortedByUser("package review aborted at the machine-specific follow-up (Ctrl-C)")
-    return {entry.item_id: MarkSide(answered[entry.item_id]) for entry in entries}
+        raise SyncAbortedByUser(
+            f"package review aborted at the machine-specific follow-up for {entry.label!r} (Ctrl-C)"
+        )
+    return MarkSide(answered[entry.item_id])
+
+
+async def _mark_side_if_permanent(  # noqa: PLR0913 - one entry's follow-up plus both machine names; all but the group keyword-only
+    group: ReviewGroup,
+    entry: ReviewEntry,
+    *,
+    source_hostname: str,
+    target_hostname: str,
+    decisions: Mapping[str, Decision],
+    mark_sides: dict[str, MarkSide],
+) -> None:
+    """Put the machine-specific question for `entry`, where its own answer raised it.
+
+    The two conditions are read here so every screen that can raise the question asks it the
+    same way: the group is one whose items are on both machines with differing copies
+    (`_is_conflicting_group`), and this entry's own decision is the permanent one. Both are
+    known as soon as the entry is answered — on a per-entry screen at its own prompt, and on
+    a batch screen at the confirm that answers every row — so nothing has to wait for the
+    rest of the review.
+    """
+    if not _is_conflicting_group(group.action) or decisions.get(entry.item_id) is not Decision.SKIP_ALWAYS:
+        return
+    mark_sides[entry.item_id] = await _ask_mark_side(
+        entry, source_hostname=source_hostname, target_hostname=target_hostname
+    )
 
 
 # The collateral screen's third answer. Not a decision about the item — it ends the run —
@@ -1961,13 +1954,14 @@ async def _review_removal_group(
         )
 
 
-async def _review_two_version_group(
+async def _review_two_version_group(  # noqa: PLR0913 - one screen's content plus the two dicts it fills; all but the group keyword-only
     group: ReviewGroup,
     *,
     console: Console,
     source_hostname: str,
     target_hostname: str,
     decisions: dict[str, Decision],
+    mark_sides: dict[str, MarkSide],
 ) -> None:
     """Resolve one group whose items are on BOTH machines with different content: each
     entry's two whole versions, then the question about that entry.
@@ -2018,6 +2012,14 @@ async def _review_two_version_group(
                 options=options,
                 default=_default_decision(group),
             )
+        )
+        await _mark_side_if_permanent(
+            group,
+            entry,
+            source_hostname=source_hostname,
+            target_hostname=target_hostname,
+            decisions=decisions,
+            mark_sides=mark_sides,
         )
 
 
@@ -2091,10 +2093,11 @@ async def review_items(  # noqa: PLR0913 - review surface plus both machine name
     nothing, or nothing but report-only groups, answers nothing; its groups still print,
     through the running display.
 
-    One further screen can follow the groups on an interactive run: `_ask_mark_sides`, for
-    the conflicting items answered permanently (`PKG-FR-MARK-SIDE`). Both paths that return
-    early — no TTY, and the automation environment — leave `mark_sides` empty, which is what
-    keeps a permanent answer nobody gave from also choosing a machine.
+    One further screen can follow an item's own answer on an interactive run:
+    `_mark_side_if_permanent`, for a conflicting item answered permanently
+    (`PKG-FR-MARK-SIDE`). Both paths that return early — no TTY, and the automation
+    environment — leave `mark_sides` empty, which is what keeps a permanent answer nobody
+    gave from also choosing a machine.
     """
     log = logger if logger is not None else _logger
 
@@ -2127,8 +2130,9 @@ async def review_items(  # noqa: PLR0913 - review surface plus both machine name
 
     decisions: dict[str, Decision] = dict(by_policy)
     snippets: dict[str, SnippetBodies] = {}
-    # `_ask_mark_sides` needs no test of its own here: it can only follow a permanent answer
-    # on a decision group, so a review that puts no question cannot reach it either.
+    # `_mark_side_if_permanent` needs no test of its own here: it can only follow a permanent
+    # answer on a decision group, so a review that puts no question cannot reach it either.
+    mark_sides: dict[str, MarkSide] = {}
     with _display_handed_over(ui, for_a_question=any(asks_for_a_decision(group) for group in groups)):
         for group in groups:
             console.print()
@@ -2177,6 +2181,7 @@ async def review_items(  # noqa: PLR0913 - review surface plus both machine name
                     source_hostname=source_hostname,
                     target_hostname=target_hostname,
                     decisions=decisions,
+                    mark_sides=mark_sides,
                 )
                 continue
 
@@ -2191,20 +2196,12 @@ async def review_items(  # noqa: PLR0913 - review surface plus both machine name
                 continue
 
             await _review_decision_group(
-                group, source_hostname=source_hostname, target_hostname=target_hostname, decisions=decisions
+                group,
+                source_hostname=source_hostname,
+                target_hostname=target_hostname,
+                decisions=decisions,
+                mark_sides=mark_sides,
             )
-
-        # After the batch, never inside it: the question is only about the rows that were
-        # answered permanently, and which those are is not known until the screen is
-        # confirmed (`PKG-FR-MARK-SIDE`). Still one round with nothing done between the
-        # questions, which is what `PKG-FR-BATCHED` constrains.
-        mark_sides = await _ask_mark_sides(
-            groups,
-            console=console,
-            source_hostname=source_hostname,
-            target_hostname=target_hostname,
-            decisions=decisions,
-        )
 
     # An interactive review can no longer leave anything unresolved (decision 10): the
     # unreproducible flow re-prompts or aborts, and a decision screen's abort raises above —

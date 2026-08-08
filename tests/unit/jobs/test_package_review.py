@@ -2295,8 +2295,8 @@ class TestAptConfigOverwriteScreen:
         screen = _fake_prompt(
             ask_side_effect=[
                 {"apt:config:99-pcsw-uat": "skip_always"},
-                {"apt:config:98-other": "apply"},
                 {"apt:config:99-pcsw-uat": "target"},
+                {"apt:config:98-other": "apply"},
             ]
         )
 
@@ -2392,31 +2392,41 @@ class TestAptConfigOverwriteScreen:
         assert "APT::Line-60" not in printed
         assert "140 more lines not shown" in printed
 
-    async def test_the_bodies_are_reprinted_on_the_machine_specific_follow_up(self) -> None:
-        """C185 — "whose own version is it?" is unanswerable from a filename, and by then the
-        screen that showed the bodies is off the top of the terminal. The rows stay one
-        batch (`PKG-FR-MARK-SIDE`); the bodies go above the table, where a file fits."""
+    async def test_the_follow_up_comes_straight_after_that_file_and_reprints_nothing(self) -> None:
+        """C185 — "whose own version is it?" is unanswerable from a filename, so it is asked
+        while the two bodies are still directly above it (`PKG-FR-MARK-SIDE`). Nothing is
+        printed twice: a reprint existed only because the batch screen came after every
+        other file's."""
         console, out = captured_console(terminal=True)
         ui = MagicMock()
+        second = _apt_config_entry(item_id="apt:config:98-other", label="98-other", target_version="Y\n")
         screen = _fake_prompt(
-            ask_side_effect=[{"apt:config:99-pcsw-uat": "skip_always"}, {"apt:config:99-pcsw-uat": "both"}]
+            ask_side_effect=[
+                {"apt:config:99-pcsw-uat": "skip_always"},
+                {"apt:config:99-pcsw-uat": "both"},
+                {"apt:config:98-other": "apply"},
+            ]
         )
 
         with (
             patch.object(sys, "stdin", _mock_isatty(True)),
             patch("pcswitcher.jobs.packages.review.decision_list", return_value=screen) as decision_list,
         ):
-            outcome = await review_items([_apt_config_group([_apt_config_entry()])], console=console, ui=ui, **HOSTS)
+            outcome = await review_items(
+                [_apt_config_group([_apt_config_entry(), second])], console=console, ui=ui, **HOSTS
+            )
 
-        follow_up = decision_list.call_args_list[1]
-        assert follow_up.args[0] == "Kept for good — whose own version is it?"
-        assert len(follow_up.kwargs["rows"]) == 1
+        titles = [call.args[0] for call in decision_list.call_args_list]
+        assert titles == [
+            "Update 99-pcsw-uat on nomad?",
+            "Kept for good — whose own version is it?",
+            "Update 98-other on nomad?",
+        ]
+        assert len(decision_list.call_args_list[1].kwargs["rows"]) == 1
         printed = out.getvalue()
-        # Once for the decision screen, once above the follow-up's table.
-        assert printed.count('"true"') == 2
-        assert printed.count('"false"') == 2
-        # Nothing is being updated any more — the overwrite was declined for good.
-        assert printed.count("would be updated by") == 1
+        # Once each, on the one screen that asked about the file.
+        assert printed.count('"true"') == 1
+        assert printed.count('"false"') == 2, "the source body appears on its own screen and on 98-other's"
         assert outcome.mark_sides == {"apt:config:99-pcsw-uat": MarkSide.BOTH}
 
 

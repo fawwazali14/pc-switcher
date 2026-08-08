@@ -149,9 +149,9 @@ Decomposes [The model](../planning/package-sync-user-requirements.md#the-model) 
 - **PKG-FR-CONFIRM-EACH**: Every operation that is not purely read-only MUST be covered by pc-switcher's per-command confirmation, including the decision records, the snippet registry and the snap refresh pause. An operation may bypass it only when it can change no state on the machine. Running a read under `sudo` does not make it a write.  
   Lineage: 002-package-sync  
   Impl: `executor.run_command`/`start_process`/`send_file`/`get_file` require `mutates=` unless purely read-only; enforced by `tests/unit/test_mutates_audit.py`
-- **PKG-FR-MARK-SIDE**: Where an item both machines have with differing copies is marked machine-specific, the user MUST be asked which machine's own copy the mark is about, and MUST be able to answer either machine or both. Both machines MUST be offered by hostname. Naming one machine MUST record the mark there and nowhere else; naming both MUST record one on each. The question MUST be asked once for every such item of a review together, after the answers that raise it exist, and MUST NOT be asked where no human answered.  
-  Lineage: 002-package-sync  
-  Impl: `review._ask_mark_sides`; `ReviewOutcome.mark_sides` carries `MarkSide`  
+- **PKG-FR-MARK-SIDE**: Where an item both machines have with differing copies is marked machine-specific, the user MUST be asked which machine's own copy the mark is about, and MUST be able to answer either machine or both. Both machines MUST be offered by hostname. Naming one machine MUST record the mark there and nowhere else; naming both MUST record one on each. The question MUST be asked for each such item on its own, immediately after the answer that raises it, and MUST NOT be asked where no human answered.  
+  Lineage: 002-package-sync, GitHub #277  
+  Impl: `review._mark_side_if_permanent`; `ReviewOutcome.mark_sides` carries `MarkSide`  
   Rationale: see [package-sync-rationale.md#pkg-fr-mark-side-both-answer](../adr/considerations/package-sync-rationale.md#pkg-fr-mark-side-both-answer)
 
 ## Preconditions and defaults

@@ -239,7 +239,7 @@ pc1 has manual debs that no package manager can put on pc2?
 Update sideloaded snap versions on pc2?
 ```
 
-### 3.3 The two file bodies, and the machine-specific follow-up
+### 3.3 The two file bodies, and the machine-specific follow-up each answer raises
 
 The first question of the run, in `apt_sync`. `/etc/apt/apt.conf.d/99-pcsw-uat` is on both machines with different content, so it is asked on a screen of its own, preceded by both machines' whole copies of it — never a digest of either (#277 is fixed). Confirm:
 
@@ -248,12 +248,12 @@ The first question of the run, in `apt_sync`. `/etc/apt/apt.conf.d/99-pcsw-uat` 
 - No 64-character hexadecimal string anywhere on the screen.
 - The row starts at **skip now** — replacing a file pc2's own user wrote is as irreversible as a deletion.
 
-Answer `<x>` on it. Then a further screen must appear — not folded into this one — titled `Kept for good — whose own version is it?`, with one row per permanently-kept conflicting item. Confirm:
+Answer `<x>` on it. Then a further screen must appear immediately — not folded into that one, and not held back to the end of the review — titled `Kept for good — whose own version is it?`, with the ONE row this answer raised. A screen collecting several items is a finding (#277): each is asked where its own two bodies are. Confirm:
 
-- Both panels are printed again above its table, this time with the target's titled plainly `On pc2 now`: the overwrite has just been declined for good, so nothing there would update anything.
+- Neither panel is printed again. The two bodies are directly above, from the question you have just answered; reprinting them is a finding.
 - Three answers, worded as the two hostnames and `both`: `pc1`, `pc2`, `both`. The keys are `<s>` for the source machine, `<t>` for the target and `<b>` for both (#278 is fixed) — `<h>`/`<o>` are gone, and `<s>` meaning something other than `skip now` here is deliberate: this screen offers no skip.
 - Each hint says how long the mark lasts on that machine — `it is pc1's own version; nothing overwrites it while pc1 has it`, and for `both`, that each version is its own machine's.
-- Every row reads `not answered`, and the legend says `<enter> confirm, once every row is answered`. Press `<enter>` before answering: nothing must happen, and a line must appear naming the rows still unanswered.
+- The row reads `not answered`, and the legend says `<enter> confirm, once every row is answered`. Press `<enter>` before answering: nothing must happen, and a line must appear naming the row still unanswered.
 - Its explanation names both machines and says the answer lasts as long as that machine still has the item.
 
 Answer `both` on this run, so §4 can check that a mark landed on each machine.

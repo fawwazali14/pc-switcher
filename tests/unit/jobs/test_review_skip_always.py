@@ -286,8 +286,9 @@ def _change_group(entries: Sequence[ReviewEntry]) -> ReviewGroup:
 
 @pytest.mark.asyncio
 class TestWhichMachineKeepsItsCopy:
-    """The follow-up after the batch (`PKG-FR-MARK-SIDE`): an item both machines have with
-    different content has no holder the run's direction can name, so the user names it.
+    """The follow-up to one item's own answer (`PKG-FR-MARK-SIDE`): an item both machines
+    have with different content has no holder the run's direction can name, so the user
+    names it.
     """
 
     async def test_a_conflicting_item_kept_for_good_is_asked_about_on_one_further_screen(self) -> None:
@@ -329,15 +330,18 @@ class TestWhichMachineKeepsItsCopy:
 
         assert outcome.mark_sides == {"c1": side}
 
-    async def test_every_conflicting_item_is_on_that_one_screen(self) -> None:
-        """H249 — batched: a row each, never a screen each."""
+    async def test_each_conflicting_item_gets_its_own_follow_up_in_row_order(self) -> None:
+        """H249 — one screen per item, each after the answer that raises it. A batch screen
+        at the end asked about files that had all scrolled away by then (#277)."""
         console = _interactive_console()
         ui = MagicMock()
         group = _change_group([_entry(name, label=name, action_label="change") for name in ("c1", "c2", "c3")])
         screen = _fake_prompt(
             ask_side_effect=[
                 {"c1": "skip_always", "c2": "skip_always", "c3": "skip_always"},
-                {"c1": "source", "c2": "target", "c3": "both"},
+                {"c1": "source"},
+                {"c2": "target"},
+                {"c3": "both"},
             ]
         )
 
@@ -347,13 +351,17 @@ class TestWhichMachineKeepsItsCopy:
         ):
             outcome = await review_items([group], console=console, ui=ui, **HOSTS)
 
-        assert decision_list.call_count == 2
-        assert [row.row_id for row in decision_list.call_args_list[1].kwargs["rows"]] == ["c1", "c2", "c3"]
+        assert decision_list.call_count == 4
+        assert [[row.row_id for row in call.kwargs["rows"]] for call in decision_list.call_args_list[1:]] == [
+            ["c1"],
+            ["c2"],
+            ["c3"],
+        ]
         assert outcome.mark_sides == {"c1": MarkSide.SOURCE, "c2": MarkSide.TARGET, "c3": MarkSide.BOTH}
 
-    async def test_only_the_items_kept_for_good_are_on_it(self) -> None:
+    async def test_only_the_items_kept_for_good_are_asked_about(self) -> None:
         """H254 — the question exists for the rows answered permanently and no others, which
-        is why it can only be asked once the batch is confirmed."""
+        on a batch screen is known at its confirm."""
         console = _interactive_console()
         ui = MagicMock()
         group = _change_group([_entry(name, label=name, action_label="change") for name in ("c1", "c2", "c3")])
