@@ -187,15 +187,15 @@ pc-switcher sync pc2 --yes --allow-first-sync
 
 A dry run converges nothing, so three things below cannot happen in it: no snippet is recorded, no registry is pushed, and the converge loop of §3.7 never opens — `_converge_one` (`jobs/packages/sync_core.py`) is not called at all. Walk the dry run for the screens, then answer the real run for the outcomes.
 
-Every finding raised from an earlier walk of these fixtures is fixed — review copy and titles (#276), the file bodies of §3.3 (#277), the follow-up's keys and default (#278), the repeated scrollback frames (#279), the job names below (#280), the snippet screens of §3.5, §3.6 and §3.7 (#281), the registry's two entry types (#282), the group order of §3.2 (#283), the progress bars below (#288) and the job tag on a job's closing log line (#289). None of them is still an open defect to observe: this runbook says what to expect instead, and seeing the old behaviour is a regression.
+Every finding raised from an earlier walk of these fixtures is fixed — review copy and titles (#276), the two panels and the per-file follow-up of §3.3 (#277), the follow-up's keys and default (#278), the repeated scrollback frames (#279), the job names below (#280), the snippet screens of §3.4, §3.5 and §3.7 (#281), the registry's two entry types (#282), the group order of §3.2 (#283), the heading each screen opens on and the blank line before every question (#287), the progress bars below (#288), the job tag on a job's closing log line (#289) and this runbook's own order (#290). None of them is still an open defect to observe: this runbook says what to expect instead, and seeing the old behaviour is a regression.
 
 The status line, the progress bars and the outcome block name jobs the way a user would (#280 is fixed): `Apt packages`, `Snaps`, `Flatpaks`, `Manual debs`, `Sideloaded snaps`, `Manual flatpaks`, `Manually installed apps`, `Folder sync`, `Install on target`. A module name such as `manual_deb_sync` on screen is a regression. Config keys and the `job` field in the log file stay the module name, so §4's log greps are unaffected.
 
 The Recent Logs panel follows the same rule in its message text (#276): a job counts its work in the same words its screens use — `Applying 1 change to manual debs`, `No snaps to change`, `1 manually installed app failed` — and the module name appears only in the `[manual_deb_sync]` prefix each line already carries.
 
-That prefix now holds for a job's whole life (#289 is fixed): `Job Apt packages started`, its own work, and `Job Apt packages completed successfully` all read `[apt_sync]`, as do the `skipped` and `failed` endings and the install-on-target skip. An ending line tagged `[orchestrator]` is a regression. `[orchestrator]` still belongs to the run's own steps — locking, connecting, snapshots, config sync.
+That prefix now holds for a job's whole life (#289 is fixed): `Job Apt packages started`, its own work, and `Job Apt packages completed successfully` all read `[apt_sync]`, as do the `skipped` and `failed` endings; the install-on-target skip reads `[install_on_target]`. An ending line tagged `[orchestrator]` is a regression. `[orchestrator]` still belongs to the run's own steps — locking, connecting, snapshots, config sync.
 
-Every job has a bar from the moment it starts (#288 is fixed), and the bar says what the job is doing rather than sitting at a percentage it cannot know: `checking both machines` while it plans, `waiting for your answers` through its review, `applying your answers` until it has items to count, then a real percentage per item. A job the status line names but the bars do not list is a regression, and so is a bar parked at `0%` for a minute of probing. The bars for `Btrfs snapshots` and `Install on target` appear the same way at their own steps.
+Every job has a bar from the moment it starts (#288 is fixed), and the bar says what the job is doing rather than sitting at a percentage it cannot know: it opens on `starting`, then a package job reads `checking both machines` while it plans, `waiting for your answers` through its review, and `applying your answers` until it has items to count, then a real percentage per item. A job the status line names but the bars do not list is a regression, and so is a bar parked at `0%` for a minute of probing. `Btrfs snapshots` reads `snapshotting pc1` then `snapshotting pc2`, and `Install on target` reads `installing` then `verifying`, at their own steps.
 
 ### 3.1 The three exclusions
 
@@ -218,12 +218,12 @@ The sections below follow the order you will meet the screens. On these fixtures
 | # | Job | Screen | Section |
 |---|-----|--------|---------|
 | 1 | `apt_sync` | `Update 99-pcsw-uat on pc2?` → the follow-up it raises | §3.3 |
-| 2 | `manual_deb_sync` | resolution, `pcsw-uat-deb` — one editor | §3.6 |
+| 2 | `manual_deb_sync` | resolution, `pcsw-uat-deb` — one editor | §3.4 |
 | 3 | `manual_deb_sync` | version difference, `pcsw-uat-drift` | §3.5 |
-| 4 | `manual_deb_sync` | `Remove manual debs from pc2?` | §3.4 |
-| 5 | `manual_snap_sync` | resolution, then version difference | §3.6, §3.5 |
-| 6 | `manual_flatpak_sync` | resolution, `sdl_sopwith` | §3.6 |
-| 7 | `manual_installs_sync` | resolution, then version difference, then `Remove manually installed apps from pc2?` | §3.6, §3.5, §3.4 |
+| 4 | `manual_deb_sync` | `Remove manual debs from pc2?` | §3.6 |
+| 5 | `manual_snap_sync` | resolution, then version difference | §3.4, §3.5 |
+| 6 | `manual_flatpak_sync` | resolution, `sdl_sopwith` | §3.4 |
+| 7 | `manual_installs_sync` | resolution, then version difference, then `Remove manually installed apps from pc2?` | §3.4, §3.5, §3.6 |
 | 8 | `manual_installs_sync` | the converge-loop retry, during apply | §3.7 |
 | 9 | — | `Job outcomes:` | §3.8 |
 
@@ -231,8 +231,8 @@ The converge-loop retry is last because it is not a review screen at all: it is 
 
 - Each of the four snippet jobs puts its own review. A job's findings never appear in another's.
 - Every title names the machine the change lands on and ends in `?`. Nothing on any screen may print a job or manager identifier — `manual_deb`, `manual_flatpak`, `manual` or a job name — and seeing one is a finding (#276).
-- The group offering software pc2 cannot get is titled `pc1 has <plural noun> that no package manager can put on pc2?`, where the noun is `manual debs`, `sideloaded snaps`, `manual flatpaks` or `manually installed apps`.
-- Items both machines have at different versions are asked about one at a time, so no group title for them ever reaches the screen: each is headed `<singular noun> <item>` and titled `pc1 and pc2 have different versions of <item> — update it on pc2?` (§3.5).
+- The group offering software pc2 cannot get is asked one item at a time, so its own group title — `pc1 has <plural noun> that no package manager can put on pc2?`, the noun being `manual debs`, `sideloaded snaps`, `manual flatpaks` or `manually installed apps` — reaches no screen in this walk. It is the wording of the warning a run with no terminal prints instead (§5). Each item is titled `Install <singular noun> <item> on pc2?` (§3.4).
+- Items both machines have at different versions are asked about one at a time too, so no group title for them ever reaches the screen either: each is headed `<singular noun> <item>` and titled `pc1 and pc2 have different versions of <item> — update it on pc2?` (§3.5).
 - Every question in the whole review has a blank line in front of it, whatever printed before it — two questions of one job running together is a finding (#287).
 
 The titles to confirm read well on a real terminal:
@@ -240,9 +240,13 @@ The titles to confirm read well on a real terminal:
 ```plain
 Remove manual debs from pc2?
 Remove manually installed apps from pc2?
-pc1 has manual debs that no package manager can put on pc2?
-pc1 and pc2 have different versions of pcsw-uat-snapdrift (2.0) — update it on pc2?
+Install manual deb pcsw-uat-deb (1.0) on pc2?
+Install manually installed app /opt/pcsw-uat-app on pc2?
+pc1 and pc2 have different versions of pcsw-uat-drift (2.0) — update it on pc2?
+pc1 and pc2 have different versions of pcsw-uat-snapdrift — update it on pc2?
 ```
+
+An item is named as its own job lists it, which is why the two lines above differ: a `manual_deb_sync` row reads `<package> (<version>)`, a `manual_flatpak_sync` row reads `<ref> (user scope)`, and a snap or a path is its bare name. That suffix belongs to the item, not to the screen — a job inventing one for a snap, or dropping one from a deb, is a finding.
 
 ### 3.3 The two file bodies, and the machine-specific follow-up each answer raises
 
@@ -265,15 +269,68 @@ Answer `both` on this run, so §4 can check that a mark landed on each machine.
 
 Nothing else in this run reaches that screen: an install is on pc1 alone and a removal on pc2 alone, so for those the action already names the holder. A version difference must not reach it either — it has no permanent answer at all.
 
-### 3.4 Removals
+### 3.4 The resolution screens
 
-The last screen of `manual_deb_sync`, and again of `manual_installs_sync`. `pcsw-uat-gone` and `/opt/pcsw-uat-orphan` are on pc2 only. Each is offered for removal by the job whose own detector claims it there, and by no other. Confirm each row starts at **skip now**, and that the path deletion's screen carries the line saying its reach is smaller than its name: `Only the path itself is deleted from pc2. There may be config or files in other folders, like a launcher, a symlink or a service unit outside these folders. Remove them manually.`
+The first group of each snippet job: four items have no recorded snippet, so each is asked how to reproduce it on a screen of its own. In the order the jobs run: `pcsw-uat-deb (1.0)`, `pcsw-uat-snap`, `io.github.fragglet.sdl_sopwith/x86_64/stable (user scope)` and `/opt/pcsw-uat-app`.
 
-Approve both. What to check here is that the warning appears at all, on the path deletion and not on the package one.
+Nothing prints above these questions. There is no recorded snippet to show, so the title — `Install manual deb pcsw-uat-deb (1.0) on pc2?` — is the whole screen, and a heading repeating the item above it would say the subject twice.
+
+The first three take **one** editor each and are never asked for a version body: `dpkg`, `snap` and `flatpak` report those versions themselves. A second editor on any of them is a finding. Their refusal message says `The snippet cannot be empty — enter one, or choose a skip.`
+
+Answer `<y>` on each, then type the body below verbatim, so a failure is comparable between runs. They are §2.1's own fixtures with the name and version changed; `<that base snap>` is the base snap §2.1 had you note.
+
+`pcsw-uat-deb (1.0)`:
+
+```bash
+set -eu
+b=/var/tmp/pcsw-uat-deb
+sudo mkdir -p "$b/DEBIAN"
+printf "Package: pcsw-uat-deb\nVersion: 1.0\nSection: misc\nPriority: optional\nArchitecture: all\nMaintainer: pc-switcher UAT <noreply@example.invalid>\nDescription: A package installed by hand, which no repository can supply.\n" | sudo tee "$b/DEBIAN/control" >/dev/null
+sudo dpkg-deb --build "$b" "$b.deb" >/dev/null
+sudo dpkg --install "$b.deb"
+```
+
+`pcsw-uat-snap`:
+
+```bash
+set -eu
+d=/var/tmp/pcsw-uat-snap
+sudo mkdir -p "$d/meta"
+printf "name: pcsw-uat-snap\nversion: '1.0'\nsummary: pc-switcher UAT sideload\ndescription: A snap installed from local bytes.\nbase: <that base snap>\nconfinement: strict\ngrade: stable\n" | sudo tee "$d/meta/snap.yaml" >/dev/null
+sudo snap try "$d"
+```
+
+`io.github.fragglet.sdl_sopwith/x86_64/stable (user scope)` — pc2 still has flathub, which is what makes this one reproducible by hand:
+
+```bash
+flatpak install --user --assumeyes flathub io.github.fragglet.sdl_sopwith
+```
+
+The deb body is the one to watch in the scrollback: `set -eu` followed by a `printf` of a whole `.deb` control file is the long line that used to wrap mid-token in a narrow column.
+
+`/opt/pcsw-uat-app` is the last of the four and the one kind with no package manager to ask for a version, so it is the only one that takes two editors. On `Install manually installed app /opt/pcsw-uat-app on pc2?` answer `<y>` and confirm that **two** editors open in sequence:
+
+1. `Enter the commands that install or update /opt/pcsw-uat-app on pc2:` — its own screen states the install-or-update contract, that the body is replayed onto a machine which may already hold an older version.
+2. `Enter the commands that print the version of /opt/pcsw-uat-app installed on whichever machine runs them:` — its own screen states that this one runs on both machines on every sync while the run is still planning, and must be read-only.
+
+Each prompt INSTRUCTS: a label with a colon on the end (`Installed-version snippet for /opt/pcsw-uat-app:`) is a regression (#287). The second must carry the distinction on its own line — the version INSTALLED on whichever machine runs it, not the one the commands above would produce.
+
+A blank line must separate the second editor from the first's echoed body: the two running together is the regression #287 shows.
+
+Each editor closes onto a panel of its own, titled `Install-or-update snippet for /opt/pcsw-uat-app` / `Installed-version snippet for /opt/pcsw-uat-app` and holding the body you wrote at the terminal's full width (#281 is fixed). The authoring note and the `(Ctrl-D to finish)` marker must be gone from the scrollback; the body must be there, whole.
+
+This one refuses an empty body and a body of only spaces with `Neither snippet can be empty — enter both, or choose a skip.`, and puts the three answers again. Try each refusal on each of its two editors: submitting a real install body and then an empty version body must not leave a half-written entry anywhere. Then supply real bodies:
+
+```bash
+# install-or-update
+sudo mkdir -p /opt/pcsw-uat-app && echo hi | sudo tee /opt/pcsw-uat-app/README >/dev/null
+# installed-version
+echo 1.0
+```
 
 ### 3.5 Version convergence
 
-Follows the resolution screens in each job that has both, and comes before that job's removal group. Three items reach this screen, one per ecosystem, and they are exactly the three that have a recorded snippet: `pcsw-uat-drift` (deb), `pcsw-uat-snapdrift` (snap) and `/opt/pcsw-uat-loop` (path). Each is asked on its own screen, headed `<singular noun> <item>` and then titled `pc1 and pc2 have different versions of <item> — update it on pc2?`, with exactly three answers and **no** `<x>`:
+Follows the resolution screens of §3.4 in each job that has both, and comes before that job's removal group. Three items reach this screen, one per ecosystem, and they are exactly the three that have a recorded snippet: `pcsw-uat-drift (2.0)` in `manual_deb_sync`, `pcsw-uat-snapdrift` in `manual_snap_sync` and `/opt/pcsw-uat-loop` in `manual_installs_sync`. Each is asked on its own screen, headed `<singular noun> <item>` and then titled `pc1 and pc2 have different versions of <item> — update it on pc2?`, with exactly three answers and **no** `<x>`:
 
 - `<y> update` — `run the recorded snippet on pc2`
 - `<w> new snippet` — `rewrite the snippet first, then run it on pc2`
@@ -287,45 +344,15 @@ The comparison must be made on the snap's **version**, `2.0` against `1.0`, and 
 
 Answer, in the order the three come:
 
-- `pcsw-uat-drift` (deb) — `<w>`, to confirm the editor opens **on the recorded body** rather than empty, which is what makes a rewrite an edit. Change the `Description:` line so the body is provably yours, submit the one editor, and let it run.
-- `pcsw-uat-snapdrift` (snap) — `<y>`, the plain replay of a recorded snippet, with no editor in the way.
-- `/opt/pcsw-uat-loop` (path) — `<y>`. Its recorded body cannot converge it, which is what §3.7 is about; nothing says so yet, and the screen that does comes much later.
+- `pcsw-uat-drift (2.0)` — `<w>`, to confirm the editor opens **on the recorded body** rather than empty, which is what makes a rewrite an edit. Change the `Description:` line so the body is provably yours, submit the one editor, and let it run.
+- `pcsw-uat-snapdrift` — `<y>`, the plain replay of a recorded snippet, with no editor in the way.
+- `/opt/pcsw-uat-loop` — `<y>`. Its recorded body cannot converge it, which is what §3.7 is about; nothing says so yet, and the screen that does comes much later.
 
-### 3.6 The editors
+### 3.6 Removals
 
-The first group of each snippet job. Four items have no recorded snippet and so are asked how to reproduce them, one screen each: `pcsw-uat-deb`, `pcsw-uat-snap`, `io.github.fragglet.sdl_sopwith/x86_64/stable` and `/opt/pcsw-uat-app`.
+The last screen of `manual_deb_sync`, and again of `manual_installs_sync`. `pcsw-uat-gone` and `/opt/pcsw-uat-orphan` are on pc2 only. Each is offered for removal by the job whose own detector claims it there, and by no other. Confirm each row starts at **skip now**, and that the path deletion's screen carries the line saying its reach is smaller than its name: `Only the path itself is deleted from pc2. There may be config or files in other folders, like a launcher, a symlink or a service unit outside these folders. Remove them manually.`
 
-`/opt/pcsw-uat-app` is the one kind with no package manager to ask for a version, so it is the only one that takes two editors. On `Install manually installed app /opt/pcsw-uat-app on pc2?` answer `<y>` and confirm that **two** editors open in sequence:
-
-1. `Enter the commands that install or update /opt/pcsw-uat-app on pc2:` — its own screen states the install-or-update contract, that the body is replayed onto a machine which may already hold an older version.
-2. `Enter the commands that print the version of /opt/pcsw-uat-app installed on whichever machine runs them:` — its own screen states that this one runs on both machines on every sync while the run is still planning, and must be read-only.
-
-Each prompt INSTRUCTS: a label with a question mark on the end (`Installed-version snippet for /opt/pcsw-uat-app:`) is a regression (#287). The second must carry the distinction on its own line — the version INSTALLED on whichever machine runs it, not the one the commands above would produce.
-
-A blank line must separate the second editor from the first's echoed body: the two running together is the regression #287 shows.
-
-Each editor closes onto a panel of its own, titled `Install-or-update snippet for /opt/pcsw-uat-app` / `Installed-version snippet for /opt/pcsw-uat-app` and holding the body you wrote at the terminal's full width (#281 is fixed). Watch a long line: `set -eu` followed by a `printf` of a `.deb` control file is the case that used to wrap mid-token in a narrow column. The authoring note and the `(Ctrl-D to finish)` marker must be gone from the scrollback; the body must be there, whole.
-
-Both must refuse an empty body and a body of only spaces, printing `Neither snippet can be empty — enter both, or choose a skip.` and putting the three answers again. Try each refusal on each editor: submitting a real install body and then an empty version body must not leave a half-written entry anywhere.
-
-Then supply real bodies:
-
-```bash
-# install-or-update
-sudo mkdir -p /opt/pcsw-uat-app && echo hi | sudo tee /opt/pcsw-uat-app/README >/dev/null
-# installed-version
-echo 1.0
-```
-
-The other three take **one** editor each and are never asked for a version body: `dpkg`, `snap` and `flatpak` report those versions themselves. A second editor here is a finding. Their refusal message says `The snippet cannot be empty — enter one, or choose a skip.`
-
-Answer them with an install-or-update body each, `<y>` then one editor:
-
-| Item | Install-or-update body |
-|---|---|
-| `pcsw-uat-deb` | rebuild and `dpkg --install` it, as §2.1 does — copy that block with the name changed |
-| `pcsw-uat-snap` | `snap try` a directory you write, as §2.1 does |
-| `io.github.fragglet.sdl_sopwith/x86_64/stable` | `flatpak install --user --assumeyes flathub io.github.fragglet.sdl_sopwith` — pc2 still has flathub, which is what makes this one reproducible by hand |
+Approve both. What to check here is that the warning appears at all, on the path deletion and not on the package one.
 
 ### 3.7 The converge loop
 
@@ -497,7 +524,7 @@ ssh testuser@"$PC1" 'printf "snippets:\n  \"unreproducible:apt-no-candidate:tree
 ssh testuser@"$PC1" '~/.local/bin/pc-switcher sync pc2 --allow-out-of-order'
 ```
 
-`manual_deb_sync`'s last screen must ask **Who put tree on pc1?**, headed `manual deb tree` with the recorded snippet body between that heading and the question, and the row's detail naming the repository apt would install from. The body arriving before anything says what the screen is about is a finding (#287). Exactly two answers, `y` "apt did" and `k` "I did", and no third — `x` must do nothing.
+`manual_deb_sync`'s last screen must ask **Who put tree on pc1?**, headed `manual deb tree (<version>)` with the recorded snippet body between that heading and the question, and the row's detail naming the repository apt would install from. The heading carries the installed version because every item label does; the question does not, because it is about the package. The body arriving before anything says what the screen is about is a finding (#287). Exactly two answers, `y` "apt did" and `k` "I did", and no third — `x` must do nothing.
 
 Answer `k`. The run must print the pin file — `/etc/apt/preferences.d/keep-tree`, `Pin-Priority: -1` — and say `apt-mark hold` is the weaker lever. Then check nothing was recorded:
 

@@ -156,11 +156,11 @@ Lineage: 001-US-9
 
 1. **Given** a job reports progress, **Then** the display shows that job's bar with percentage or item counts, and a pulsing bar carrying the phase for an update with nothing countable in it
 
-2. **Given** a job has started but reported nothing of its own yet, **Then** its bar is already in the list, pulsing, so the bars never contradict the step counter — and the job's own first update takes that bar over instead of adding a second one
+2. **Given** the job loop is running, **Then** the step counter reads `Step 10a/12`, `Step 10b/12`, … — one letter sub-step per job, labelled with the job's display name (`Step 10d/12 — Manual debs`). The denominator is `len(SyncStep)` and is fixed regardless of how many jobs are enabled
 
-3. **Given** the job loop is running, **Then** the step counter reads `Step 10a/12`, `Step 10b/12`, … — one letter sub-step per job, labelled with the job's display name (`Step 10d/12 — Manual debs`). The denominator is `len(SyncStep)` and is fixed regardless of how many jobs are enabled
+3. **Given** a record at or above `logging.tui`, **Then** it appears in the Recent Logs panel, colour-coded by level; every record at or above WARNING is also captured and reprinted as an end-of-run summary block after the Live display stops
 
-4. **Given** a record at or above `logging.tui`, **Then** it appears in the Recent Logs panel, colour-coded by level; every record at or above WARNING is also captured and reprinted as an end-of-run summary block after the Live display stops
+4. **Given** a job has started but reported nothing of its own yet, **Then** its bar is already in the list, pulsing, so the bars never contradict the step counter — and the job's own first update takes that bar over instead of adding a second one
 
 ### Spec-Driven Test Coverage for Core (CORE-US-TEST-COVERAGE)
 

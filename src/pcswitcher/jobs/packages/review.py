@@ -2013,9 +2013,10 @@ async def _review_two_version_group(  # noqa: PLR0913 - one screen's content plu
     """Resolve one group whose items are on BOTH machines with different content: each
     entry's two whole versions, then the question about that entry.
 
-    Both versions are printed, the target's first, never a unified diff — the user's own
-    position is that a diff of two configurations is not readable, and the question is which
-    of the two the machine should have, not what changed between them. One entry at a time,
+    Both versions are printed, the SOURCE's first (`_print_both_versions`), never a unified
+    diff — the user's own position is that a diff of two configurations is not readable, and
+    the question is which of the two the machine should have, not what changed between them.
+    One entry at a time,
     also ruled by the user: two whole file bodies are long enough that a batched screen
     asked about definitions that had already scrolled away.
 
