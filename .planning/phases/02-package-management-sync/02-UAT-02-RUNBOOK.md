@@ -193,7 +193,9 @@ The status line, the progress bars and the outcome block name jobs the way a use
 
 The Recent Logs panel follows the same rule in its message text (#276): a job counts its work in the same words its screens use — `Applying 1 change to manual debs`, `No snaps to change`, `1 manually installed app failed` — and the module name appears only in the `[manual_deb_sync]` prefix each line already carries.
 
-That prefix now holds for a job's whole life (#289 is fixed): `Job Apt packages started`, its own work, and `Job Apt packages completed successfully` all read `[apt_sync]`, as do the `skipped` and `failed` endings; the install-on-target skip reads `[install_on_target]`. An ending line tagged `[orchestrator]` is a regression. `[orchestrator]` still belongs to the run's own steps — locking, connecting, snapshots, config sync.
+That prefix holds for a job's whole life (#289 is fixed): `Job Apt packages started`, its own work, and `Job Apt packages completed successfully` all read `[apt_sync]`, as do the `skipped` and `failed` endings; the install-on-target skip reads `[install_on_target]`. An ending line tagged `[orchestrator]` is a regression. `[orchestrator]` still belongs to the run's own steps — locking, connecting, snapshots, config sync.
+
+The routine half of that life is no longer on screen. `Job X started` and `Job X completed successfully` are FULL, so they are in the log file and below the panel's INFO floor: the bar says the job is running and the outcome block says how it ended, and fourteen lines of a ten-line panel for seven jobs said neither. Either of the two in the panel is a regression; the `skipped` and `failed` endings stay there, because a job that did not do its work is not routine. §4 reads the demoted pair out of the file. `Btrfs snapshots` and `Install on target` have no bar and keep their INFO lines.
 
 None of those four lines carries a `(source)` or `(target)` side any more (#291 is fixed), and neither do the run's own lines about both machines — `Sync completed successfully`, `Creating pre-sync snapshots`, `Checking disk space on both hosts`. A side stays only where the record is about that one machine, so `(target)` on `Configuration sync completed` is right and a side on a job's start is a regression.
 
@@ -407,9 +409,11 @@ grep -c 'install_body' ~/.config/pc-switcher/package-snippets.yaml              
 grep -c '99-pcsw-uat' ~/.config/pc-switcher/apt.decisions.yaml                   # 1 — "both" recorded here too
 LOG=$(ls -t ~/.local/share/pc-switcher/logs/sync-*.log | head -1)
 grep -nE 'pcsw-uat-deb|pcsw-uat-snap|sdl_sopwith' "$LOG" | grep -vE 'manual_deb|manual_snap|manual_flatpak' | head
+grep -c '"event": "Job Apt packages started"' "$LOG"          # 1 — the panel dropped it, the file keeps it
+grep -n 'Job Apt packages ' "$LOG" | head -2                  # "level": "FULL", "job": "apt_sync", and no "host"
 ```
 
-That last line is the exclusion read from the log: every mention of those three items must carry one of the snippet jobs, never `apt_sync`, `snap_sync` or `flatpak_sync`.
+The exclusion is read from the log first: every mention of those three items must carry one of the snippet jobs, never `apt_sync`, `snap_sync` or `flatpak_sync`. The two lines after it are the demoted lifecycle pair — present, at FULL, tagged with the job and carrying no side.
 
 Every count reads `label:` and `install_body:` lines rather than the item's name, which repeats down an entry and would count twice.
 

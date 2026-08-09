@@ -55,6 +55,7 @@ from pcswitcher.models import (
     JobResult,
     JobSkipped,
     JobStatus,
+    LogLevel,
     SessionStatus,
     SnapshotPhase,
     SyncAborted,
@@ -1537,7 +1538,22 @@ class Orchestrator:
                         # jobs read one machine to change the other, so a side here could only
                         # be picked rather than observed (#291). The job's own records name the
                         # machine each of them is about.
-                        self._logger.info(
+                        #
+                        # The routine pair is FULL, so it reaches the log file for a
+                        # post-mortem and leaves the ten-line Recent Logs panel to what only
+                        # it can say (#289). What makes that safe is the bar opened three
+                        # lines above: it says the job started, how far it is and that it
+                        # finished, and the end-of-run outcome block says how it ended. Every
+                        # job THIS LOOP runs has one, which is why the demotion belongs here
+                        # and not behind a list of job names — a bar-less job cannot be in
+                        # the loop (`CORE-FR-PROGRESS-EMIT`), and the steps outside it
+                        # (snapshots, install-on-target) keep their own INFO trace because
+                        # nothing else shows them progressing.
+                        #
+                        # The skipped and failed endings below stay where they are: a job
+                        # that did not do its work is not routine, and no bar says why.
+                        self._logger.log(
+                            LogLevel.FULL,
                             "Job %s started",
                             job.display_name,
                             extra={"job": job.name},
@@ -1557,7 +1573,8 @@ class Orchestrator:
                                 ended_at=ended_at,
                             )
                         )
-                        self._logger.info(
+                        self._logger.log(
+                            LogLevel.FULL,
                             "Job %s completed successfully",
                             job.display_name,
                             extra={"job": job.name},
