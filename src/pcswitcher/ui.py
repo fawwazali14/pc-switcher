@@ -263,9 +263,17 @@ class TerminalUI:
         the update methods but not rendered per the is_started guard; the
         immediate refresh reflects it at once instead of waiting for an
         unrelated future auto-refresh tick.
+
+        The blank line separates the answer just given from the run's next
+        activity, which otherwise starts against the answered row and reads as
+        one block with it (#287). It belongs here rather than at each prompt for
+        the same reason the blank in FRONT of a question belongs to `_ask`: this
+        is the one place the display comes back. The two cannot double up —
+        whatever prompt follows, the frame drawn here is between them.
         """
         if self._paused:
             self._paused = False
+            self._console.print()
             self._live = self._build_live()
             self._live.start()
             self._live.update(self._render(), refresh=True)

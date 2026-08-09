@@ -473,6 +473,26 @@ async def test_pause_resume_rebuilds_fresh_live_instance() -> None:
     assert ui._live is None, "stop() remains the final teardown and nulls the instance"  # pyright: ignore[reportPrivateUsage]
 
 
+async def test_resume_separates_the_answered_question_from_the_display() -> None:
+    """#287 — the answered row and the display coming back read as one block without a blank
+    line between them: the status line, the bars and Recent Logs paint straight against the
+    decision just made. The blank belongs to resume() because that is what repaints.
+    """
+    output = StringIO()
+    console = Console(file=output, force_terminal=True, width=120)
+
+    ui = TerminalUI(console=console, max_log_lines=5, total_steps=5)
+    ui.start()
+    try:
+        ui.pause()
+        printed_before_resume = output.getvalue()
+        ui.resume()
+    finally:
+        ui.stop()
+
+    assert output.getvalue()[len(printed_before_resume) :].startswith("\n")
+
+
 async def test_resume_without_prior_pause_is_silent() -> None:
     """resume() must stay a no-op when no pause() actually stopped a live region.
 

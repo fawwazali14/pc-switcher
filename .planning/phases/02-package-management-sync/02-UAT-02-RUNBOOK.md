@@ -238,6 +238,7 @@ The converge-loop retry is last because it is not a review screen at all: it is 
 - The group offering software pc2 cannot get is asked one item at a time, so its own group title — `pc1 has <plural noun> that no package manager can put on pc2`, the noun being `manual debs`, `sideloaded snaps`, `manual flatpaks` or `manually installed apps` — reaches no screen in this walk. It is the wording of the warning a run with no terminal prints instead (§5). Each item is titled `Install <singular noun> <item> on pc2?` (§3.4).
 - Items both machines have at different versions are asked about one at a time too, so no group title for them ever reaches the screen either: each is headed `<singular noun> <item>` and titled `pc1 and pc2 have different versions of <item> — update it on pc2?` (§3.5).
 - Every question in the whole review has a blank line in front of it, whatever printed before it — two questions of one job running together is a finding (#287).
+- And one behind it: once a question is answered, a blank line separates the answered row from the display coming back, so the decision just made and the run's next activity are not one block. The status line painted directly under the answer is a finding (#287).
 
 The titles to confirm read well on a real terminal:
 

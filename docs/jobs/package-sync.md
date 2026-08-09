@@ -83,7 +83,7 @@ Some questions come one-per-screen because they have to show you something first
 
 Some findings are only reported, not asked about: version differences, origin divergences, repositories the source cannot reproduce. Neither answering nor declining would change anything, so there is nothing to answer.
 
-A question freezes the live display above itself, so you can see where the run is while you answer. A job that asks nothing — an empty review, or one holding only reported findings — does not: it prints what it found and the display keeps running. With seven package jobs enabled, only the ones that ask leave a frame behind.
+A question freezes the live display above itself, so you can see where the run is while you answer, and the display comes back a blank line below your answer rather than against it. A job that asks nothing — an empty review, or one holding only reported findings — does not freeze anything: it prints what it found and the display keeps running. With seven package jobs enabled, only the ones that ask leave a frame behind.
 
 ## Machine-specific items
 
