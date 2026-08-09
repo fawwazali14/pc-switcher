@@ -22,6 +22,7 @@ import pytest
 from pcswitcher.events import ProgressEvent
 from pcswitcher.jobs import JobContext
 from pcswitcher.jobs.base import SyncJob
+from pcswitcher.jobs.install_on_target import INSTALL_ON_TARGET_SKIP_ENV
 from pcswitcher.models import (
     Host,
     JobResult,
@@ -229,6 +230,23 @@ class TestABarExistsFromJobStart:
         await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
 
         ui.close_job_bar.assert_called_once_with("ui_watching_job", "UI watching job", "skipped")
+
+    @pytest.mark.asyncio
+    async def test_a_job_that_reports_no_progress_gets_no_bar(
+        self, wired_orchestrator: Orchestrator, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`CORE-FR-PROGRESS-EMIT`: the bar belongs to a job that reports progress. The two
+        steps the orchestrator runs outside the loop — install-on-target here, btrfs
+        snapshots likewise — emit none, so an empty bar for them says only that the
+        orchestrator reached the step, which the status line already says.
+        """
+        monkeypatch.setenv(INSTALL_ON_TARGET_SKIP_ENV, "1")
+        ui = cast(MagicMock, wired_orchestrator._ui)  # pyright: ignore[reportPrivateUsage]
+
+        await wired_orchestrator._install_on_target_job()  # pyright: ignore[reportPrivateUsage]
+
+        ui.open_job_bar.assert_not_called()
+        ui.close_job_bar.assert_not_called()
 
 
 class TestFR048LogSyncSummary:

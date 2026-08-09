@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, ClassVar
 from pcswitcher.install import get_install_with_script_command_line
 from pcswitcher.jobs.base import SystemJob
 from pcswitcher.jobs.context import JobContext
-from pcswitcher.models import CommandResult, Host, JobSkipped, LogLevel, ProgressUpdate
+from pcswitcher.models import CommandResult, Host, JobSkipped, LogLevel
 from pcswitcher.version import Release, Version, find_one_version, get_this_version
 
 if TYPE_CHECKING:
@@ -136,11 +136,6 @@ class InstallOnTargetJob(SystemJob):
         # Run the same install.sh script used for initial installation
         # The script handles: uv bootstrap, dependencies, pc-switcher install
 
-        # Nothing here is countable — one install script that either works or falls back —
-        # so the bar pulses on the phase instead of sitting at 0% through a uv bootstrap
-        # and a GitHub lookup (#288).
-        self._report_progress(ProgressUpdate(heartbeat=True, item="installing"))
-
         # To minimize github lookups, we first try to install directly using the exact source version.
         # If that fails, we fall back to the release floor, which needs a GitHub API call to lookup the releases.
         result = await self._run_install(self.source_version)
@@ -168,7 +163,6 @@ class InstallOnTargetJob(SystemJob):
             installed_version_str = source_release.tag
 
         # Verify installation (login_shell ensures PATH includes ~/.local/bin)
-        self._report_progress(ProgressUpdate(heartbeat=True, item="verifying"))
         result = await self.target.run_command("pc-switcher --version", login_shell=True)
         if not result.success:
             raise RuntimeError("Installation verification failed: pc-switcher not found")

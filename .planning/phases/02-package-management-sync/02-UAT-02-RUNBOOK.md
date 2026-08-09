@@ -102,7 +102,7 @@ echo 2.0 | sudo tee /opt/pcsw-uat-loop/version >/dev/null
 
 # Three recorded entries. An item both machines have at different versions only
 # reaches the update screen when a snippet is ALREADY recorded for it — with nothing
-# to replay, the run asks how to reproduce it instead, on the resolution screen with
+# to replay, the run asks how to reproduce it instead, on the install screen with
 # the verb "update". So the two drifting package items get real entries, and
 # /opt/pcsw-uat-loop gets one whose install body exits 0 and moves nothing. Only the
 # unowned path carries a version_body: dpkg and snap answer that question for the
@@ -195,7 +195,7 @@ The Recent Logs panel follows the same rule in its message text (#276): a job co
 
 That prefix now holds for a job's whole life (#289 is fixed): `Job Apt packages started`, its own work, and `Job Apt packages completed successfully` all read `[apt_sync]`, as do the `skipped` and `failed` endings; the install-on-target skip reads `[install_on_target]`. An ending line tagged `[orchestrator]` is a regression. `[orchestrator]` still belongs to the run's own steps — locking, connecting, snapshots, config sync.
 
-Every job has a bar from the moment it starts (#288 is fixed), and the bar says what the job is doing rather than sitting at a percentage it cannot know: it opens on `starting`, then a package job reads `checking both machines` while it plans, `waiting for your answers` through its review, and `applying your answers` until it has items to count, then a real percentage per item. A job the status line names but the bars do not list is a regression, and so is a bar parked at `0%` for a minute of probing. `Btrfs snapshots` reads `snapshotting pc1` then `snapshotting pc2`, and `Install on target` reads `installing` then `verifying`, at their own steps.
+Every job of the job loop — the seven package jobs, `Folder sync` and `VS Code state` — has a bar from the moment it starts (#288 is fixed), and the bar says what the job is doing rather than sitting at a percentage it cannot know: it opens on `starting`, then a package job reads `checking both machines` while it plans, `waiting for your answers` through its review, and `applying your answers` until it has items to count, then a real percentage per item. One of those jobs named by the status line but absent from the bars is a regression, and so is a bar parked at `0%` for a minute of probing. `Btrfs snapshots` and `Install on target` run outside the loop and report no progress, so neither has a bar at any point — the status line and the Recent Logs panel are where you follow those two steps.
 
 ### 3.1 The three exclusions
 
@@ -218,12 +218,12 @@ The sections below follow the order you will meet the screens. On these fixtures
 | # | Job | Screen | Section |
 |---|-----|--------|---------|
 | 1 | `apt_sync` | `Update 99-pcsw-uat on pc2?` → the follow-up it raises | §3.3 |
-| 2 | `manual_deb_sync` | resolution, `pcsw-uat-deb` — one editor | §3.4 |
+| 2 | `manual_deb_sync` | install, `pcsw-uat-deb` — one editor | §3.4 |
 | 3 | `manual_deb_sync` | version difference, `pcsw-uat-drift` | §3.5 |
 | 4 | `manual_deb_sync` | `Remove manual debs from pc2?` | §3.6 |
-| 5 | `manual_snap_sync` | resolution, then version difference | §3.4, §3.5 |
-| 6 | `manual_flatpak_sync` | resolution, `sdl_sopwith` | §3.4 |
-| 7 | `manual_installs_sync` | resolution, then version difference, then `Remove manually installed apps from pc2?` | §3.4, §3.5, §3.6 |
+| 5 | `manual_snap_sync` | install, then version difference | §3.4, §3.5 |
+| 6 | `manual_flatpak_sync` | install, `sdl_sopwith` | §3.4 |
+| 7 | `manual_installs_sync` | install, then version difference, then `Remove manually installed apps from pc2?` | §3.4, §3.5, §3.6 |
 | 8 | `manual_installs_sync` | the converge-loop retry, during apply | §3.7 |
 | 9 | — | `Job outcomes:` | §3.8 |
 
@@ -269,7 +269,7 @@ Answer `both` on this run, so §4 can check that a mark landed on each machine.
 
 Nothing else in this run reaches that screen: an install is on pc1 alone and a removal on pc2 alone, so for those the action already names the holder. A version difference must not reach it either — it has no permanent answer at all.
 
-### 3.4 The resolution screens
+### 3.4 The install screens
 
 The first group of each snippet job: four items have no recorded snippet, so each is asked how to reproduce it on a screen of its own. In the order the jobs run: `pcsw-uat-deb (1.0)`, `pcsw-uat-snap`, `io.github.fragglet.sdl_sopwith/x86_64/stable (user scope)` and `/opt/pcsw-uat-app`.
 
@@ -330,7 +330,7 @@ echo 1.0
 
 ### 3.5 Version convergence
 
-Follows the resolution screens of §3.4 in each job that has both, and comes before that job's removal group. Three items reach this screen, one per ecosystem, and they are exactly the three that have a recorded snippet: `pcsw-uat-drift (2.0)` in `manual_deb_sync`, `pcsw-uat-snapdrift` in `manual_snap_sync` and `/opt/pcsw-uat-loop` in `manual_installs_sync`. Each is asked on its own screen, headed `<singular noun> <item>` and then titled `pc1 and pc2 have different versions of <item> — update it on pc2?`, with exactly three answers and **no** `<x>`:
+Follows the install screens of §3.4 in each job that has both, and comes before that job's removal group. Three items reach this screen, one per ecosystem, and they are exactly the three that have a recorded snippet: `pcsw-uat-drift (2.0)` in `manual_deb_sync`, `pcsw-uat-snapdrift` in `manual_snap_sync` and `/opt/pcsw-uat-loop` in `manual_installs_sync`. Each is asked on its own screen, headed `<singular noun> <item>` and then titled `pc1 and pc2 have different versions of <item> — update it on pc2?`, with exactly three answers and **no** `<x>`:
 
 - `<y> update` — `run the recorded snippet on pc2`
 - `<w> new snippet` — `rewrite the snippet first, then run it on pc2`

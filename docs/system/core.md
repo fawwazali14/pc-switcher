@@ -162,7 +162,7 @@ Lineage: 001-US-9
 
 - **CORE-US-TUI-AS3**: **Given** a record at or above `logging.tui`, **Then** it appears in the Recent Logs panel, colour-coded by level; every record at or above WARNING is also captured and reprinted as an end-of-run summary block after the Live display stops
 
-- **CORE-US-TUI-AS4**: **Given** a job has started but reported nothing of its own yet, **Then** its bar is already in the list, pulsing, so the bars never contradict the step counter — and the job's own first update takes that bar over instead of adding a second one
+- **CORE-US-TUI-AS4**: **Given** a job the job loop is running has started but reported nothing of its own yet, **Then** its bar is already in the list, pulsing, so the bars never contradict the step counter — and the job's own first update takes that bar over instead of adding a second one
 
 ### Spec-Driven Test Coverage for Core (CORE-US-TEST-COVERAGE)
 
@@ -324,7 +324,7 @@ Lineage: 001-core edge cases, 003-core-tests edge cases
 
 #### Progress Reporting
 
-- **CORE-FR-PROGRESS-EMIT** `[Frictionless Command UX]`: Every job the user waits on MUST have a bar from the moment it starts, before it asks anything — the orchestrator opens one as it starts the job, and closes it when the job ends however it ends. Each job MUST then report the phase it is in through `ProgressUpdate`s (percentage, item counts, item description, heartbeat, sub-bar track), naming what it is doing in the user's words. A phase with nothing countable to report MUST pulse rather than sit at a fixed percentage, which reads as hung. A background job that runs for the whole sync (the disk-space monitors) has no bar  
+- **CORE-FR-PROGRESS-EMIT** `[Frictionless Command UX]`: Jobs CAN emit `ProgressUpdate`s (percentage, item counts, item description, heartbeat, sub-bar track). Optional, but recommended for long operations. A job that emits them MUST have its bar from the moment it starts, before it asks anything — the job loop opens one as it starts the job and closes it however the job ends, so the progress list never contradicts the status line. A job that emits none gets no bar, and a background job that runs for the whole sync (the disk-space monitors) emits none by design: its bar could only pulse to the last frame. An update MUST name what the job is doing in the user's words, and one with nothing countable in it MUST pulse rather than sit at a fixed percentage, which reads as hung  
   Lineage: 001-FR-043 → #288
 
 - **CORE-FR-PROGRESS-FWD** `[Frictionless Command UX]`: The event bus MUST deliver `ProgressEvent`s to the terminal UI, which owns one bar per job and one per `track`  

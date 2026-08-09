@@ -157,12 +157,6 @@ class DiskSpaceMonitorJob(BackgroundJob):
                 # A monitor has no meaningful "progress" — emitting a heartbeat here
                 # rendered a permanently-0% bar in the TUI (misleading). Stay silent
                 # and only surface output below when free space is actually low.
-                #
-                # This is the one job with no bar at all, and deliberately so: the
-                # bar-from-job-start rule (`CORE-FR-PROGRESS-EMIT`) is about the jobs the
-                # user waits on, each of which ends. A background watcher runs for the
-                # whole sync, so its bar could only pulse to the last frame — which is
-                # exactly the reads-as-hung display that rule exists to prevent.
 
                 # Check against critical threshold
                 is_critical = False

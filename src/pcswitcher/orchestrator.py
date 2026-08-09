@@ -859,10 +859,7 @@ class Orchestrator:
             error_msgs = [f"  - {e.host.value}: {e.message}" for e in errors]
             raise RuntimeError("Installation validation failed:\n" + "\n".join(error_msgs))
 
-        # Execute. Bar opened and closed here for the same reason as in the job loop:
-        # this is a job the user waits on, so it must be visible while it runs.
-        assert self._ui is not None
-        self._ui.open_job_bar(install_job.name, install_job.display_name)
+        # Execute
         started_at = datetime.now(UTC)
         try:
             await install_job.execute()
@@ -886,7 +883,6 @@ class Orchestrator:
                 e.reason,
                 extra={"job": install_job.name, "host": "target"},
             )
-            self._ui.close_job_bar(install_job.name, install_job.display_name, "skipped")
         else:
             self._job_results.append(
                 JobResult(
@@ -897,7 +893,6 @@ class Orchestrator:
                     ended_at=datetime.now(UTC),
                 )
             )
-            self._ui.close_job_bar(install_job.name, install_job.display_name)
 
     async def _sync_config_to_target(self) -> None:
         """Sync configuration from source to target machine.
@@ -1442,12 +1437,8 @@ class Orchestrator:
             error_msgs = [f"  - {e.host.value}: {e.message}" for e in errors]
             raise RuntimeError("Snapshot validation failed:\n" + "\n".join(error_msgs))
 
-        # Execute. Bar opened and closed here for the same reason as in the job loop:
-        # this is a job the user waits on, so it must be visible while it runs.
-        assert self._ui is not None
-        self._ui.open_job_bar(snapshot_job.name, snapshot_job.display_name)
+        # Execute
         await snapshot_job.execute()
-        self._ui.close_job_bar(snapshot_job.name, snapshot_job.display_name)
 
     async def _execute_jobs(self, jobs: list[Job], seed_results: list[JobResult] | None = None) -> list[JobResult]:
         """Execute sync jobs sequentially with background disk monitoring.
@@ -1524,6 +1515,10 @@ class Orchestrator:
                     # Opened here rather than left to each job so no job type can be
                     # missed: the status line and the progress list must agree from the
                     # first instant of the job, whatever that job goes on to report.
+                    # Sound because every job this loop runs does report progress — a job
+                    # that reports none must not be given a bar (`CORE-FR-PROGRESS-EMIT`),
+                    # so a bar-less job would have to be kept out of the loop, not
+                    # special-cased here.
                     self._ui.open_job_bar(job.name, job.display_name)
                     started_at = datetime.now(UTC)
                     try:
