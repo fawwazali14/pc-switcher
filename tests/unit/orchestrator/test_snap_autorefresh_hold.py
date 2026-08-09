@@ -16,6 +16,8 @@ Covers:
   and never a failure.
 - Restore is a no-op when no hold was engaged, and never blocks the manual `--revision`
   convergence (the hold command only writes the system-wide `refresh.hold` option).
+- The pause and its undo are each announced once per machine, on the machine they happened
+  on, and a machine left untouched announces neither.
 - Every warning names the machine it concerns by hostname (`PKG-FR-NAME-THE-MACHINES`).
 
 All executor interactions are mocked; no real snap/snapd commands run.
@@ -113,6 +115,12 @@ def all_calls(mock: MagicMock) -> list[str]:
     return [call.args[0] for call in mock.run_command.call_args_list]
 
 
+def info_hosts_saying(orchestrator: Orchestrator, needle: str) -> list[str]:
+    """The `host` each INFO containing `needle` was tagged with, in the order logged."""
+    logger = cast(MagicMock, orchestrator._logger)  # pyright: ignore[reportPrivateUsage]
+    return [str(call.kwargs["extra"]["host"]) for call in logger.info.call_args_list if needle in str(call.args[0])]
+
+
 # Both machine names are pinned: the source's is otherwise the real hostname of whatever
 # machine runs the suite, and neither may contain "source"/"target" for the naming
 # assertions in `TestWarningsNameTheMachines` to mean anything.
@@ -159,25 +167,6 @@ class TestHoldEngaged:
         assert orchestrator._snap_hold_engaged is True  # pyright: ignore[reportPrivateUsage]
 
     @pytest.mark.asyncio
-    async def test_the_announcement_names_its_owner_and_why_it_spans_the_run(self) -> None:
-        """#233 — the pause fires before the first job, so the line that announces it has to
-        say who is holding it and why it is not scoped to the snap job: folder_sync mirrors
-        each snap's data directory by the revision snap_sync converged, so a refresh between
-        the two silently drops that directory from the mirror.
-        """
-        orchestrator, _source, _target = make_orchestrator(snap_sync_enabled=True)
-
-        await orchestrator._hold_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
-
-        announcements = [line for line in infos_of(orchestrator) if "Pausing snapd auto-refresh" in line]
-        assert announcements
-        for line in announcements:
-            assert "whole run" in line
-            assert "orchestrator" in line
-            assert "snap_sync" in line
-            assert "folder_sync" in line
-
-    @pytest.mark.asyncio
     async def test_capture_is_read_only_and_precedes_the_set(self) -> None:
         """E73 — the existing policy is read, read-only, before anything is written."""
         orchestrator, source, _target = make_orchestrator(snap_sync_enabled=True)
@@ -210,6 +199,57 @@ class TestHoldEngaged:
         assert not any("refresh.hold" in c for c in all_calls(source))
         assert not any("refresh.hold" in c for c in all_calls(target))
         assert orchestrator._snap_hold_engaged is False  # pyright: ignore[reportPrivateUsage]
+
+
+class TestOneRecordPerMachine:
+    """#292 — the pause and its undo are each announced once per machine, on the machine they
+    happened on, and a machine that was left alone announces neither.
+    """
+
+    @pytest.mark.asyncio
+    async def test_each_machine_announces_its_own_pause(self) -> None:
+        """E121 — one record per machine, on the machine it happened on."""
+        orchestrator, _source, _target = make_orchestrator(snap_sync_enabled=True)
+
+        await orchestrator._hold_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
+
+        assert info_hosts_saying(orchestrator, "Pausing snapd auto-refresh") == ["source", "target"]
+
+    @pytest.mark.asyncio
+    async def test_the_pause_line_is_not_an_essay(self) -> None:
+        """E121 — the rationale lives in the code; the operator's screen gets the fact."""
+        orchestrator, _source, _target = make_orchestrator(snap_sync_enabled=True)
+
+        await orchestrator._hold_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
+
+        assert [line for line in infos_of(orchestrator) if "Pausing" in line] == [
+            "Pausing snapd auto-refresh",
+            "Pausing snapd auto-refresh",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_each_machine_announces_its_own_restore(self) -> None:
+        """E122 — a machine told its update policy changed is told it was put back."""
+        orchestrator, _source, _target = make_orchestrator(snap_sync_enabled=True)
+
+        await orchestrator._hold_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
+        await orchestrator._restore_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
+
+        assert info_hosts_saying(orchestrator, "Restoring the snapd auto-refresh policy") == ["source", "target"]
+
+    @pytest.mark.asyncio
+    async def test_a_machine_left_untouched_claims_neither_pause_nor_restore(self) -> None:
+        """E123 — a machine whose prior policy could not be read is never paused, so it must not
+        report one — nor a restore of a hold this run never set.
+        """
+        denied = {"snap get system refresh.hold": CommandResult(1, "", HOLD_DENIED_STDERR)}
+        orchestrator, _source, _target = make_orchestrator(snap_sync_enabled=True, source_responses=denied)
+
+        await orchestrator._hold_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
+        await orchestrator._restore_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
+
+        assert info_hosts_saying(orchestrator, "Pausing snapd auto-refresh") == ["target"]
+        assert info_hosts_saying(orchestrator, "Restoring the snapd auto-refresh policy") == ["target"]
 
 
 class TestCaptureIsPrivileged:

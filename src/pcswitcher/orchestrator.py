@@ -1781,15 +1781,6 @@ class Orchestrator:
         self._snap_hold_prior_target, self._snap_hold_readable_target = await self._capture_snap_hold(Host.TARGET)
         # Engage BEFORE applying so a partially-applied hold is still restored in _cleanup.
         self._snap_hold_engaged = True
-        # Announced once, not per host: every log line already carries the machine it
-        # happened on. The line states its owner and its span (#233), because the pause
-        # fires before the first job and otherwise reads as an unexplained stop.
-        self._logger.info(
-            "Pausing snapd auto-refresh on both hosts for the whole run — held by the orchestrator, not by "
-            "snap_sync alone, because snap_sync converges each snap's revision and folder_sync then mirrors "
-            "that revision's data directory; a refresh between the two drops it from the mirror",
-            extra={"job": "orchestrator", "host": "source"},
-        )
         for host, prior, readable in (
             (Host.SOURCE, self._snap_hold_prior_source, self._snap_hold_readable_source),
             (Host.TARGET, self._snap_hold_prior_target, self._snap_hold_readable_target),
@@ -1802,6 +1793,15 @@ class Orchestrator:
                     extra={"job": "orchestrator", "host": host.value},
                 )
                 continue
+            # One record per machine, inside the loop, so only a machine actually being
+            # paused announces one and the record carries the side it happened on (#292).
+            # Why the pause exists, and why the orchestrator owns it rather than snap_sync,
+            # is the module comment on `_SNAP_AUTOREFRESH_HOLD_DURATION` — not the
+            # operator's screen every run.
+            self._logger.info(
+                "Pausing snapd auto-refresh",
+                extra={"job": "orchestrator", "host": host.value},
+            )
             await self._apply_snap_hold(host, prior)
 
     async def _restore_snap_hold(self, host: Host, prior: str | None, *, readable: bool) -> None:
@@ -1840,6 +1840,14 @@ class Orchestrator:
         else:
             cmd = 'sudo snap set system refresh.hold=""'
             description = "clear the snapd refresh.hold this run set"
+        # Reached only on a machine whose policy this run could read, and so could pause: the
+        # unreadable branch above returns. Announced because a user told their update policy
+        # was changed wants to be told it was put back (#292); the value being written back
+        # is `--confirm-each-command`'s business, not this line's.
+        self._logger.info(
+            "Restoring the snapd auto-refresh policy",
+            extra={"job": "orchestrator", "host": host.value},
+        )
         try:
             result = await self._run_snap_hold_command(host, cmd, mutates=description)
             if not result.success:
@@ -2149,17 +2157,6 @@ class Orchestrator:
         target_state = await self._capture_apt_timer_state(Host.TARGET)
         # Engage BEFORE applying so a partially-applied suspension is still restored in _cleanup.
         self._apt_timers_engaged = True
-        # Announced once, not per host: every log line already carries the machine it happened
-        # on. The line states its owner and its span, because the pause fires before the first
-        # job and otherwise reads as an unexplained stop.
-        self._logger.info(
-            "Pausing the system apt update timers (%s) on both hosts for the whole run — held by the "
-            "orchestrator, because Ubuntu's automatic updater takes the same dpkg lock apt_sync converges "
-            "under; each machine's timers restart by themselves within %s even if this run never finishes",
-            ", ".join(_APT_TIMERS),
-            _APT_TIMER_SUSPENSION,
-            extra={"job": "orchestrator", "host": "source"},
-        )
         for host, state in ((Host.SOURCE, source_state), (Host.TARGET, target_state)):
             if state is None:
                 self._logger.warning(
@@ -2173,6 +2170,19 @@ class Orchestrator:
             timers = _running_apt_timers(state)
             if not timers:
                 continue
+            # One record per machine, inside the loop, so only a machine that actually has
+            # timers to stop announces one and the record carries the side (#292). Which
+            # timers those are is DEBUG: a reader chasing a specific unit turns it on, and
+            # the reason the pause exists at all is the `_APT_TIMERS` module comment.
+            self._logger.info(
+                "Pausing the system apt update timers",
+                extra={"job": "orchestrator", "host": host.value},
+            )
+            self._logger.debug(
+                "Stopping %s",
+                ", ".join(timers),
+                extra={"job": "orchestrator", "host": host.value},
+            )
             await self._apply_apt_timer_suspension(host, timers)
 
     async def _restore_apt_timers_on(self, host: Host, timers: tuple[str, ...]) -> None:
@@ -2190,6 +2200,17 @@ class Orchestrator:
         """
         if not timers:
             return
+        # Only a machine this run actually stopped timers on reaches here, so nothing claims
+        # a restart it never owed (#292). Names at DEBUG, as at the pause.
+        self._logger.info(
+            "Restarting the system apt update timers",
+            extra={"job": "orchestrator", "host": host.value},
+        )
+        self._logger.debug(
+            "Starting %s",
+            ", ".join(timers),
+            extra={"job": "orchestrator", "host": host.value},
+        )
         try:
             started = await self._run_apt_timer_command(
                 host,

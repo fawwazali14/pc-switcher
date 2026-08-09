@@ -828,6 +828,9 @@ Driven by the orchestrator around the whole job window; listed here because the 
 | E101 | Atlas cannot run privileged commands without a password | Validation fails naming Atlas, saying the pause is why the source needs it | U | `test_snap_sync:TestValidate::test_source_without_passwordless_sudo_yields_validation_error` |
 | E102 | Nomad cannot run privileged commands without a password | Validation fails naming Nomad | U | `test_snap_sync:TestValidate::test_target_without_passwordless_sudo_yields_validation_error` |
 | E103 | snap is absent on either machine | Validation fails naming that machine | U | `test_snap_sync:TestValidate::test_snap_unavailable_on_source_yields_validation_error`, `::test_snap_unavailable_on_target_yields_validation_error` |
+| E121 | The pause is applied to a machine | That machine is told so, once, on the machine it happened on, and the line says only that | U | `test_snap_autorefresh_hold:TestOneRecordPerMachine::test_each_machine_announces_its_own_pause`, `::test_the_pause_line_is_not_an_essay` |
+| E122 | The prior policy is put back at the end | Each machine is told so, once, on the machine it happened on | U | `test_snap_autorefresh_hold:TestOneRecordPerMachine::test_each_machine_announces_its_own_restore` |
+| E123 | A machine whose prior policy could not be read | It is told neither that it was paused nor that anything was put back there | U | `test_snap_autorefresh_hold:TestOneRecordPerMachine::test_a_machine_left_untouched_claims_neither_pause_nor_restore` |
 
 ### E.10 The `~/snap` data boundary (article: PKG-FR-SNAP-DATA-BOUNDARY)
 
@@ -2099,7 +2102,7 @@ Driven by the orchestrator around the whole job window; listed here because the 
 | --- | --- | --- | --- | --- |
 | K94 | `apt_sync` is enabled and the run is real | Both machines' automatic apt updates are suspended for the run | U V | `test_apt_timer_suspension:TestSuspensionEngaged::test_both_timers_stopped_on_both_hosts_when_apt_sync_enabled`; `test_package_sync:TestTheSyncWindowHoldIsTimed::test_a_killed_run_leaves_a_timed_hold_on_each_machines_own_clock` (polled on both machines while the run is alive) |
 | K95 | The suspension is about to be applied | Each machine's current updater state is read first, and reading it changes nothing | U | `test_apt_timer_suspension:TestSuspensionEngaged::test_capture_is_read_only_and_precedes_the_stop` |
-| K96 | The suspension is announced before the first job | The line says who holds it, why it spans the whole run, and that each machine resumes on its own | U | `test_apt_timer_suspension:TestSuspensionEngaged::test_the_announcement_names_its_owner_its_span_and_the_self_restart` |
+| K96 | The suspension is applied to a machine | That machine is told so, once, on the machine it happened on, and the line says only that | U | `test_apt_timer_suspension:TestOneRecordPerMachine::test_each_machine_announces_its_own_pause_without_the_essay` |
 | K97 | `apt_sync` is not enabled | Nothing is suspended on either machine | U | `test_apt_timer_suspension:TestSuspensionEngaged::test_nothing_is_suspended_when_apt_sync_disabled` |
 | K98 | A dry run | Nothing is suspended on either machine | U | `test_apt_timer_suspension:TestSuspensionEngaged::test_nothing_is_suspended_in_dry_run` |
 | K99 | A machine has its automatic updates masked or already stopped | Nothing is suspended there and nothing is started afterwards | U | `test_apt_timer_suspension:TestOnlyRunningTimersAreTouched::test_a_machine_that_is_not_running_the_updater_is_left_alone` |
@@ -2129,6 +2132,9 @@ Driven by the orchestrator around the whole job window; listed here because the 
 | K124 | A run finishes with nothing outstanding (the ordinary run) | Nothing is issued and nothing is reported | U | `::test_cleanup_settles_nothing_when_nothing_is_outstanding` |
 | K125 | The pending restart cannot be pushed back | The run says so, names the machine, and continues | U | `::test_a_failed_defer_warns_and_the_sync_continues` |
 | K126 | The outstanding restart cannot be carried out at the end | It is left scheduled — the machine's only remaining way back — and the run says so | U | `::test_a_failed_trigger_at_cleanup_leaves_the_restore_scheduled` |
+| K130 | A reader needs to know which units were stopped | The unit names are recorded per machine at debug level, never in the line the operator sees | U | `test_apt_timer_suspension:TestOneRecordPerMachine::test_the_unit_names_are_debug_not_info` |
+| K131 | The timers are started again at the end | Each machine is told so, once, on the machine it happened on | U | `test_apt_timer_suspension:TestOneRecordPerMachine::test_each_machine_announces_its_own_restart` |
+| K132 | A machine that had nothing running to stop | It is told neither that it was paused nor that anything was restarted there | U | `test_apt_timer_suspension:TestOneRecordPerMachine::test_a_machine_nothing_was_stopped_on_claims_neither` |
 
 ## N. Across runs, and across the two roles
 

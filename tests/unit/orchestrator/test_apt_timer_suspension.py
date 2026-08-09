@@ -15,6 +15,8 @@ Covers:
 - A restore a dead run left pending is DEFERRED past this sync at suspend time — never run
   there, because the apt timers are `Persistent` and starting them would fire an overdue
   upgrade straight into the run — and is carried out and cleared at cleanup instead.
+- The suspension and the restart are each announced once per machine, on the machine they
+  happened on, with the unit names at DEBUG; a machine with nothing to stop announces neither.
 - Every warning names the machine it concerns by hostname (`PKG-FR-NAME-THE-MACHINES`).
 
 All executor interactions are mocked; no real systemctl/systemd-run commands run.
@@ -146,6 +148,19 @@ def all_calls(mock: MagicMock) -> list[str]:
     return [call.args[0] for call in mock.run_command.call_args_list]
 
 
+def records_saying(orchestrator: Orchestrator, level: str, needle: str) -> list[tuple[str, str]]:
+    """`(rendered message, host)` for every record at `level` containing `needle`."""
+    logger = cast(MagicMock, orchestrator._logger)  # pyright: ignore[reportPrivateUsage]
+    return [
+        (
+            str(call.args[0]) % tuple(call.args[1:]) if len(call.args) > 1 else str(call.args[0]),
+            str(call.kwargs["extra"]["host"]),
+        )
+        for call in getattr(logger, level).call_args_list
+        if needle in str(call.args[0])
+    ]
+
+
 def stops_of(mock: MagicMock) -> list[str]:
     """Every command that stops one of the apt timers themselves.
 
@@ -206,24 +221,6 @@ class TestSuspensionEngaged:
         assert all(call.kwargs.get("mutates") is None for call in reads)
 
     @pytest.mark.asyncio
-    async def test_the_announcement_names_its_owner_its_span_and_the_self_restart(self) -> None:
-        """K96 — the pause fires before the first job, so the line announcing it says who holds
-        it, why it is not scoped to the apt job, and that each machine restarts its own timers
-        on its own — which is what stops a reader from having to check afterwards.
-        """
-        orchestrator, _source, _target = make_orchestrator(apt_sync_enabled=True)
-
-        await orchestrator._suspend_apt_timers()  # pyright: ignore[reportPrivateUsage]
-
-        announcements = [line for line in infos_of(orchestrator) if "Pausing the system apt update timers" in line]
-        assert announcements
-        for line in announcements:
-            assert "whole run" in line
-            assert "orchestrator" in line
-            assert "dpkg lock" in line
-            assert "restart by themselves" in line
-
-    @pytest.mark.asyncio
     async def test_nothing_is_suspended_when_apt_sync_disabled(self) -> None:
         """K97 — nothing is suspended when `apt_sync` is not enabled."""
         orchestrator, source, target = make_orchestrator(apt_sync_enabled=False)
@@ -244,6 +241,66 @@ class TestSuspensionEngaged:
         for ex in (source, target):
             assert all_calls(ex) == []
         assert orchestrator._apt_timers_engaged is False  # pyright: ignore[reportPrivateUsage]
+
+
+class TestOneRecordPerMachine:
+    """#292 — the pause and its undo are each announced once per machine, on the machine they
+    happened on; the unit names are DEBUG; a machine with nothing stopped announces neither.
+    """
+
+    @pytest.mark.asyncio
+    async def test_each_machine_announces_its_own_pause_without_the_essay(self) -> None:
+        """K96 — one record per machine, on the machine it happened on, and only the fact."""
+        orchestrator, _source, _target = make_orchestrator(apt_sync_enabled=True)
+
+        await orchestrator._suspend_apt_timers()  # pyright: ignore[reportPrivateUsage]
+
+        assert records_saying(orchestrator, "info", "Pausing") == [
+            ("Pausing the system apt update timers", "source"),
+            ("Pausing the system apt update timers", "target"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_the_unit_names_are_debug_not_info(self) -> None:
+        """K130 — a reader chasing a specific unit turns DEBUG on; INFO stays the fact."""
+        orchestrator, _source, _target = make_orchestrator(apt_sync_enabled=True)
+
+        await orchestrator._suspend_apt_timers()  # pyright: ignore[reportPrivateUsage]
+
+        assert not any(timer in line for line in infos_of(orchestrator) for timer in APT_TIMERS)
+        assert [host for _line, host in records_saying(orchestrator, "debug", "Stopping")] == ["source", "target"]
+        assert all(
+            all(timer in line for timer in APT_TIMERS)
+            for line, _host in records_saying(orchestrator, "debug", "Stopping")
+        )
+
+    @pytest.mark.asyncio
+    async def test_each_machine_announces_its_own_restart(self) -> None:
+        """K131 — a machine told its updates were paused is told they are running again."""
+        orchestrator, _source, _target = make_orchestrator(apt_sync_enabled=True)
+
+        await orchestrator._suspend_apt_timers()  # pyright: ignore[reportPrivateUsage]
+        await orchestrator._restore_apt_timers()  # pyright: ignore[reportPrivateUsage]
+
+        assert records_saying(orchestrator, "info", "Restarting") == [
+            ("Restarting the system apt update timers", "source"),
+            ("Restarting the system apt update timers", "target"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_a_machine_nothing_was_stopped_on_claims_neither(self) -> None:
+        """K132 — a machine whose timers are masked has nothing taken away, so it must not report a
+        pause — nor a restart that would impose a policy it never had.
+        """
+        orchestrator, _source, _target = make_orchestrator(
+            apt_sync_enabled=True, source_responses={"systemctl show": CommandResult(0, MASKED, "")}
+        )
+
+        await orchestrator._suspend_apt_timers()  # pyright: ignore[reportPrivateUsage]
+        await orchestrator._restore_apt_timers()  # pyright: ignore[reportPrivateUsage]
+
+        assert [host for _line, host in records_saying(orchestrator, "info", "Pausing")] == ["target"]
+        assert [host for _line, host in records_saying(orchestrator, "info", "Restarting")] == ["target"]
 
 
 class TestOnlyRunningTimersAreTouched:

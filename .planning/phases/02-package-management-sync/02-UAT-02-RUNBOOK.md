@@ -384,6 +384,8 @@ echo 2.0 | sudo tee /opt/pcsw-uat-loop/version >/dev/null
 
 The last block must be headed `Job outcomes:` and give one line per job in execution order — a mark (`✔`, `⏭`, `✖`), the job's display name (`Apt packages`, not `apt_sync`), its status (`success`, `skipped`, `failed`), and for a skipped or failed job the reason that job recorded. Confirm the failures are printed **once**: nothing else prints them again in a second shape.
 
+The run must have said so on each machine, once each way, with no rationale in the line — `Pausing the system apt update timers` tagged pc1 and again tagged pc2 near the start, and `Restarting the system apt update timers` tagged each at the end. The unit names belong to DEBUG and must not appear in either line. The snapd pair reads the same way: `Pausing snapd auto-refresh` and `Restoring the snapd auto-refresh policy`, once per machine.
+
 Then check the apt timers were suspended for the run and put back:
 
 ```bash
