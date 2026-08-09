@@ -1396,7 +1396,12 @@ async def _capture_bodies(
     if not carries_version_body(entry.item_id):
         return SnippetBodies(install_body=install_body)
     version_body = await _capture_body(
-        f"Enter the commands that print the version of {entry.label} installed on whichever machine runs them:",
+        # INSTALLED in capitals, which is how every other line the editor screens carry
+        # emphasises a word (`_snippet_authoring_note`'s OLDER, `_version_authoring_note`'s
+        # AND): a questionary prompt is a plain string and renders no markup. The emphasis
+        # is on the distinction that matters — the version on the machine, not the version
+        # the install body would produce, which the note below the prompt then spells out.
+        f"Enter the commands that print the version of the INSTALLED {entry.label}",
         record_title=f"Installed-version snippet for {entry.label}",
         note=_version_authoring_note(source_hostname, target_hostname),
         existing=recorded.version_body if isinstance(recorded, VersionedSnippetBodies) else "",

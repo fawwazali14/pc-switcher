@@ -1129,7 +1129,9 @@ class Orchestrator:
             )
         else:
             scope_line = "  (all data configured for sync)"
-        warn_title = f"First Sync — {tgt} Will Be Overwritten"
+        # Sentence case, like every other title this tool puts on screen. The three
+        # confirmation warnings were the only Title Cased strings in the product.
+        warn_title = f"First sync — {tgt} will be overwritten"
         warning = (
             f"[bold]{tgt}[/bold] has never been synced by pc-switcher (no sync history).\n\n"
             f"This first-ever sync will overwrite everything on {tgt} that is in scope of "
@@ -1219,7 +1221,7 @@ class Orchestrator:
         if target_peer is not None and not hostnames_equal(target_peer, src):
             # W2: machine-C — target last synced with a third machine
             direction = "received a sync from" if target_role == SyncRole.TARGET else "sent a sync to"
-            warn_title = f"{tgt} Last Synced with a Different Machine"
+            warn_title = f"{tgt} last synced with a different machine"
             warning = (
                 f"[bold]{tgt}[/bold] most recently {direction} [bold]{target_peer}[/bold], "
                 f"not this machine ([bold]{src}[/bold]).\n\n"
@@ -1229,7 +1231,7 @@ class Orchestrator:
             )
         else:
             # W3: consecutive push — target looks clean but this source is pushing again
-            warn_title = "Consecutive Sync — No Back-Sync Received"
+            warn_title = "Consecutive sync — no back-sync received"
             warning = (
                 f"You are syncing from [bold]{src}[/bold] to [bold]{tgt}[/bold] again "
                 "without receiving a sync back first.\n\n"

@@ -316,7 +316,7 @@ The deb body is the one to watch in the scrollback: `set -eu` followed by a `pri
 `/opt/pcsw-uat-app` is the last of the four and the one kind with no package manager to ask for a version, so it is the only one that takes two editors. On `Install manually installed app /opt/pcsw-uat-app on pc2?` answer `<y>` and confirm that **two** editors open in sequence:
 
 1. `Enter the commands that install or update /opt/pcsw-uat-app on pc2:` — its own screen states the install-or-update contract, that the body is replayed onto a machine which may already hold an older version.
-2. `Enter the commands that print the version of /opt/pcsw-uat-app installed on whichever machine runs them:` — its own screen states that this one runs on both machines on every sync while the run is still planning, and must be read-only.
+2. `Enter the commands that print the version of the INSTALLED /opt/pcsw-uat-app` — its own screen states that this one runs on both machines on every sync while the run is still planning, and must be read-only.
 
 Each prompt INSTRUCTS: a label with a colon on the end (`Installed-version snippet for /opt/pcsw-uat-app:`) is a regression (#287). The second must carry the distinction on its own line — the version INSTALLED on whichever machine runs it, not the one the commands above would produce.
 

@@ -1392,9 +1392,7 @@ class TestUnreproducibleGroupResolution:
         install_prompt, version_prompt = (call.args[0] for call in editors)
 
         assert install_prompt == "Enter the commands that install or update brscan3 on nomad:"
-        assert version_prompt == (
-            "Enter the commands that print the version of brscan3 installed on whichever machine runs them:"
-        )
+        assert version_prompt == "Enter the commands that print the version of the INSTALLED brscan3"
         assert "Installed-version snippet for brscan3" in scrollback
 
     async def test_the_captured_body_is_printed_full_width_and_whole(self) -> None:
