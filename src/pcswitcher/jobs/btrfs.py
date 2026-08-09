@@ -128,8 +128,9 @@ class BtrfsSnapshotJob(SystemJob):
 
         session_dir = f"/.snapshots/pc-switcher/{session_folder}"
 
+        # No side: the job snapshots both machines, so the pair that opens and closes it
+        # covers both. Each individual snapshot below names the machine it lands on.
         self._log(
-            Host.SOURCE,
             LogLevel.INFO,
             f"Creating {phase.value}-sync snapshots",
             session_id=self.context.session_id,
@@ -151,11 +152,11 @@ class BtrfsSnapshotJob(SystemJob):
             snap_path = f"{session_dir}/{snap_name}"
 
             self._log(
-                Host.SOURCE,
                 LogLevel.FULL,
                 f"Creating snapshot {snap_name}",
                 subvolume=subvol_name,
                 mount_point=mount_point,
+                host=Host.SOURCE,
             )
 
             if not self.context.dry_run:
@@ -163,17 +164,17 @@ class BtrfsSnapshotJob(SystemJob):
 
                 if result.exit_code != 0:
                     self._log(
-                        Host.SOURCE,
                         LogLevel.CRITICAL,
                         f"Failed to create snapshot {snap_name}",
                         error=result.stderr,
+                        host=Host.SOURCE,
                     )
                     raise RuntimeError(f"Snapshot creation failed: {result.stderr}")
 
             self._log(
-                Host.SOURCE,
                 LogLevel.FULL,
                 f"Successfully created snapshot {snap_name}",
+                host=Host.SOURCE,
             )
 
         if not self.context.dry_run:
@@ -189,11 +190,11 @@ class BtrfsSnapshotJob(SystemJob):
             snap_path = f"{session_dir}/{snap_name}"
 
             self._log(
-                Host.TARGET,
                 LogLevel.FULL,
                 f"Creating snapshot {snap_name}",
                 subvolume=subvol_name,
                 mount_point=mount_point,
+                host=Host.TARGET,
             )
 
             if not self.context.dry_run:
@@ -201,21 +202,20 @@ class BtrfsSnapshotJob(SystemJob):
 
                 if result.exit_code != 0:
                     self._log(
-                        Host.TARGET,
                         LogLevel.CRITICAL,
                         f"Failed to create snapshot {snap_name}",
                         error=result.stderr,
+                        host=Host.TARGET,
                     )
                     raise RuntimeError(f"Snapshot creation failed: {result.stderr}")
 
             self._log(
-                Host.TARGET,
                 LogLevel.FULL,
                 f"Successfully created snapshot {snap_name}",
+                host=Host.TARGET,
             )
 
         self._log(
-            Host.SOURCE,
             LogLevel.INFO,
             f"Completed {phase.value}-sync snapshots",
             session_id=self.context.session_id,

@@ -124,11 +124,11 @@ class EsmGate:
         named = ", ".join(esm_files)
         if context.dry_run:
             self._log(
-                Host.TARGET,
                 LogLevel.WARNING,
                 f"[dry-run] {self._machines.target} reports no Ubuntu Pro attachment, so {named} would not be "
                 f"written: a real run would skip {self._job_display_name} entirely and leave every other job "
                 "running.",
+                host=Host.TARGET,
             )
             return False
 
@@ -159,4 +159,4 @@ class EsmGate:
                 )
             if await self.attached():
                 return True
-            self._log(Host.TARGET, LogLevel.WARNING, f"{target} still reports no Ubuntu Pro attachment.")
+            self._log(LogLevel.WARNING, f"{target} still reports no Ubuntu Pro attachment.", host=Host.TARGET)

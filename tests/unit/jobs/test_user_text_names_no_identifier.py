@@ -149,10 +149,10 @@ class TestNoTitleNamesAnIdentifier:
 
 
 # Where a job writes a sentence a human reads, and which argument of that call carries it:
-# `_log(host, level, message, **extra)` and `JobSkipped(name, reason)`. The identifier stays
-# on everything around them — the `job` field of the log record, the `[apt_sync]` prefix the
-# formatter prints, `JobSkipped`'s first argument — so only the message itself is checked.
-_USER_TEXT_ARGUMENT: dict[str, int] = {"_log": 2, "JobSkipped": 1}
+# `_log(level, message, *, host=None, **extra)` and `JobSkipped(name, reason)`. The identifier
+# stays on everything around them — the `job` field of the log record, the `[apt_sync]` prefix
+# the formatter prints, `JobSkipped`'s first argument — so only the message itself is checked.
+_USER_TEXT_ARGUMENT: dict[str, int] = {"_log": 1, "JobSkipped": 1}
 
 #: `self.<attr>` that names the job to a machine rather than to a person.
 _SELF_IDENTIFIERS = frozenset({"name", "manager_id"})

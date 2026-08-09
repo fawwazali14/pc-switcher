@@ -55,7 +55,7 @@ class _NamedJob(SyncJob):
         return []
 
     async def execute(self) -> None:
-        self._log(Host.SOURCE, LogLevel.INFO, "herding widgets")
+        self._log(LogLevel.INFO, "herding widgets", host=Host.SOURCE)
 
 
 class _UnnamedJob(SyncJob):
@@ -99,7 +99,7 @@ class TestTheIdentifierStaysTheIdentifier:
 
     def test_a_jobs_log_records_carry_the_identifier(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.INFO):
-            _NamedJob(make_context())._log(Host.SOURCE, LogLevel.INFO, "herding widgets")  # pyright: ignore[reportPrivateUsage]
+            _NamedJob(make_context())._log(LogLevel.INFO, "herding widgets", host=Host.SOURCE)  # pyright: ignore[reportPrivateUsage]
 
         record = next(r for r in caplog.records if r.getMessage() == "herding widgets")
         assert record.job == "stub_display_name"  # pyright: ignore[reportAttributeAccessIssue]

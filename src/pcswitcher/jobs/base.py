@@ -142,23 +142,30 @@ class Job(ABC):
 
     def _log(
         self,
-        host: Host,
         level: LogLevel,
         message: str,
+        *,
+        host: Host | None = None,
         **extra: Any,
     ) -> None:
         """Log a message through stdlib logging.
 
+        The side is optional because not every record is about one machine: a record
+        describing both hosts at once has no side to name, and naming one is worse than
+        naming none (#291). The whole pipeline already travels without it — all three
+        formatters omit the field when the call did not supply it (`LOG-FR-JSON`), as
+        startup and shutdown records have always done.
+
         Args:
-            host: Which machine this log relates to (SOURCE or TARGET)
             level: Log level
             message: Human-readable message
+            host: The machine this record is about, when it is about one
             **extra: Additional structured context
         """
         logger.log(
             level.value,
             message,
-            extra={"job": self.name, "host": host.value, **extra},
+            extra={"job": self.name, **({"host": host.value} if host is not None else {}), **extra},
         )
 
     def _report_progress(

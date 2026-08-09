@@ -461,6 +461,29 @@ def _make_record(level: int, msg: str, *, job: str | None = None, host: str | No
     return record
 
 
+class TestAJobRecordWithoutASide:
+    """#291 — a record about a job rather than about one machine carries a `job` and no
+    `host`, and every destination has to render that shape. The formatters already dropped a
+    record missing BOTH fields (startup and shutdown); this is the mixed shape `Job._log` now
+    emits, which nothing produced before.
+    """
+
+    def test_the_json_line_keeps_the_job_and_omits_the_host(self) -> None:
+        data = json.loads(JsonFormatter().format(_make_record(logging.INFO, "Job Apt packages started", job="apt")))
+        assert data["job"] == "apt"
+        assert "host" not in data
+
+    def test_the_rich_line_keeps_the_job_and_omits_the_host(self) -> None:
+        output = RichFormatter().format(_make_record(logging.INFO, "Job Apt packages started", job="apt"))
+        assert "[apt]" in output
+        assert "(source)" not in output and "(target)" not in output
+
+    def test_the_plain_line_keeps_the_job_and_omits_the_host(self) -> None:
+        line = format_log_line(_make_record(logging.INFO, "Job Apt packages started", job="apt"))
+        assert "[apt]" in line
+        assert "(" not in line
+
+
 class TestWarningCapture:
     """Warnings that scroll past in the rolling log must be resurfaced.
 

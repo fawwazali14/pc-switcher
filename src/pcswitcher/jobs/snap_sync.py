@@ -732,9 +732,9 @@ class SnapSyncJob(PackageSyncJob):
         # configuration`, `auth_admin_keep`), so unprivileged this does not report "no hold",
         # it fails with "access denied" and the line below would say `(none)` unconditionally.
         source_hold = await self.source.run_command("sudo snap get system refresh.hold")
-        self._log(Host.SOURCE, LogLevel.FULL, f"snap refresh.hold: {source_hold.stdout.strip() or '(none)'}")
+        self._log(LogLevel.FULL, f"snap refresh.hold: {source_hold.stdout.strip() or '(none)'}", host=Host.SOURCE)
         target_hold = await self.target.run_command("sudo snap get system refresh.hold", login_shell=False)
-        self._log(Host.TARGET, LogLevel.FULL, f"snap refresh.hold: {target_hold.stdout.strip() or '(none)'}")
+        self._log(LogLevel.FULL, f"snap refresh.hold: {target_hold.stdout.strip() or '(none)'}", host=Host.TARGET)
 
         return errors
 

@@ -363,9 +363,9 @@ class UnreproducibleSyncJob(PackageSyncJob):
             await SnippetRegistry(executor, machine).remove(given_to_apt)
         for item_id in given_to_apt:
             self._log(
-                Host.SOURCE,
                 LogLevel.INFO,
                 f"dropped the install snippet for {item_id}: the package is the package manager's",
+                host=Host.SOURCE,
             )
 
     def _promote_authored_snippets_to_install(self) -> None:
@@ -860,9 +860,9 @@ class UnreproducibleSyncJob(PackageSyncJob):
                 return result
 
             self._log(
-                Host.TARGET,
                 LogLevel.FULL,
                 f"{diff.label}: {self.machines.target} still reports {landed}, not {expected}",
+                host=Host.TARGET,
             )
             # Past this point the recorded body has run and left the version where it was,
             # so every further pass replays a body the user wrote just now.

@@ -162,14 +162,14 @@ As a pc-switcher user, I want TUI and file log output to carry timestamps, colou
 - **LOG-FR-FILE-PATH**: System MUST write all logs at configured file level or above to a per-session file at `~/.local/share/pc-switcher/logs/sync-<timestamp>-<session_id>.log`.  
   Lineage: 001-FR-021
 
-- **LOG-FR-JSON**: System MUST preserve the current log file format: JSON Lines format (one JSON object per line with keys: timestamp in ISO8601 format, level, event, plus any additional context fields) for machine-readability. `job` and `host` are emitted when the call supplied them and omitted when it did not (e.g. during startup and shutdown). ~~hostname~~ removed from per-entry requirements; see LOG-FR-SESSION-HOSTNAMES.  
-  Lineage: 001-FR-022 → 004-FR-007 → #140
+- **LOG-FR-JSON**: System MUST preserve the current log file format: JSON Lines format (one JSON object per line with keys: timestamp in ISO8601 format, level, event, plus any additional context fields) for machine-readability. `job` and `host` are emitted when the call supplied them and omitted when it did not — during startup and shutdown, and for a record that is not about one machine, such as a job's own start and end (`host` alone absent). ~~hostname~~ removed from per-entry requirements; see LOG-FR-SESSION-HOSTNAMES.  
+  Lineage: 001-FR-022 → 004-FR-007 → #140 → #291
 
 - **LOG-FR-SESSION-HOSTNAMES**: System MUST log the source and target hostnames at session start, establishing the mapping between host roles ("source"/"target") and actual machine names.  
   Lineage: #140
 
-- **LOG-FR-TUI-FORMAT**: System MUST render each record for the terminal as `HH:MM:SS [LEVEL   ] [job] (host) message key=value`, level-coloured, on the stderr handler used for non-interactive runs. In an interactive run records go to the UI's log panel instead, as plain text (`HH:MM:SS [LEVEL] [job] (host) message`) with no ANSI codes and no Rich markup, so arbitrary message content can neither render as markup nor corrupt the Live display.  
-  Lineage: 001-FR-022 -> 004-FR-008
+- **LOG-FR-TUI-FORMAT**: System MUST render each record for the terminal as `HH:MM:SS [LEVEL   ] [job] (host) message key=value`, level-coloured, on the stderr handler used for non-interactive runs. In an interactive run records go to the UI's log panel instead, as plain text (`HH:MM:SS [LEVEL] [job] (host) message`) with no ANSI codes and no Rich markup, so arbitrary message content can neither render as markup nor corrupt the Live display. The `[job]` and `(host)` segments each appear only when the record carries that field, per LOG-FR-JSON.  
+  Lineage: 001-FR-022 -> 004-FR-008 → #291
 
 - **LOG-FR-WARNING-RESURFACE**: In an interactive run the system MUST capture every `>=WARNING` record into a persistent buffer independently of the TUI level floor, backing a live counter in the status bar and a summary reprinted into scrollback once the Live display stops. Without it a warning is overwritten in the rolling panel within a few frames and never read.
 

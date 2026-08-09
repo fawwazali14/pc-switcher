@@ -142,11 +142,11 @@ class DiskSpaceMonitorJob(BackgroundJob):
         runtime_minimum_str = self.context.config["runtime_minimum"]  # For error messages
 
         self._log(
-            self.host,
             LogLevel.DEBUG,
             f"Starting disk space monitoring for {self.mount_point}",
             interval=self._check_interval,
             threshold=runtime_minimum_str,
+            host=self.host,
         )
 
         try:
@@ -174,12 +174,12 @@ class DiskSpaceMonitorJob(BackgroundJob):
 
                 if is_critical:
                     self._log(
-                        self.host,
                         LogLevel.CRITICAL,
                         f"Disk space critically low on {hostname}",
                         mount_point=self.mount_point,
                         available_bytes=disk_space.available_bytes,
                         threshold=runtime_minimum_str,
+                        host=self.host,
                     )
                     raise DiskSpaceCriticalError(
                         host=self.host,
@@ -199,13 +199,13 @@ class DiskSpaceMonitorJob(BackgroundJob):
 
                 if is_warning:
                     self._log(
-                        self.host,
                         LogLevel.WARNING,
                         f"Disk space getting low on {hostname}",
                         mount_point=self.mount_point,
                         available_bytes=disk_space.available_bytes,
                         available_formatted=format_bytes(disk_space.available_bytes),
                         warning_threshold=self.context.config["warning_threshold"],
+                        host=self.host,
                     )
 
                 # Wait before next check
@@ -213,8 +213,8 @@ class DiskSpaceMonitorJob(BackgroundJob):
 
         except asyncio.CancelledError:
             self._log(
-                self.host,
                 LogLevel.DEBUG,
                 f"Disk space monitoring cancelled for {self.mount_point}",
+                host=self.host,
             )
             raise

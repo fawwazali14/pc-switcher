@@ -877,7 +877,7 @@ class FolderSyncJob(SyncJob):
                     #   > sent to remote   < received from remote   * special message
                     #   . attribute-only   c created (dir/symlink/device)   h hard link (IN-03)
                     # Full itemize-code reference: docs/reading-sync-logs.md
-                    self._log(Host.SOURCE, LogLevel.FULL, f"{folder.path}: {line}")
+                    self._log(LogLevel.FULL, f"{folder.path}: {line}", host=Host.SOURCE)
                     if line.startswith("*deleting"):
                         files_deleted += 1
 
@@ -885,7 +885,7 @@ class FolderSyncJob(SyncJob):
         if buf:
             line = buf.decode(errors="replace").strip()
             if line and line[0] in (">", "<", "*", ".", "c", "h"):
-                self._log(Host.SOURCE, LogLevel.FULL, f"{folder.path}: {line}")
+                self._log(LogLevel.FULL, f"{folder.path}: {line}", host=Host.SOURCE)
                 if line.startswith("*deleting"):
                     files_deleted += 1
 
@@ -920,10 +920,10 @@ class FolderSyncJob(SyncJob):
         result = await proc.wait_result()
         if result.exit_code != 0:
             self._log(
-                Host.SOURCE,
                 LogLevel.CRITICAL,
                 f"rsync failed for {folder.path!r}: {result.stderr.strip()}",
                 exit_code=result.exit_code,
+                host=Host.SOURCE,
             )
             raise RuntimeError(f"rsync failed for {folder.path!r} with exit code {result.exit_code}")
         # A pass with nothing to transfer (steady state, or any dry-run) races through
@@ -978,10 +978,10 @@ class FolderSyncJob(SyncJob):
         for folder in folders:
             prefix = "[dry-run] " if self.context.dry_run else ""
             self._log(
-                Host.SOURCE,
                 LogLevel.INFO,
                 f"{prefix}Syncing {folder.path!r} → {self.context.target_hostname!r}",
                 session_id=self.context.session_id,
+                host=Host.SOURCE,
             )
 
             copy_files = 0
@@ -989,9 +989,9 @@ class FolderSyncJob(SyncJob):
             split = not self.context.dry_run and await self._needs_copy_pass(folder)
             if split:
                 self._log(
-                    Host.SOURCE,
                     LogLevel.FULL,
                     f"Copy pass for {folder.path!r} (no-delete), to place per-directory filter files",
+                    host=Host.SOURCE,
                 )
                 copy_files, copy_bytes, _ = await self._run_rsync_pass(
                     self._build_rsync_cmd(folder, dry_run=False, delete=False, target_snap_revisions=snap_revisions),
@@ -1014,17 +1014,17 @@ class FolderSyncJob(SyncJob):
             # Per-folder summary (ADR-013). Human-readable size at INFO; exact byte
             # count kept at DEBUG for precise diagnostics (#189).
             self._log(
-                Host.SOURCE,
                 LogLevel.INFO,
                 f"{prefix}Completed sync of {folder.path!r}: "
                 f"{files_transferred} files transferred, "
                 f"{format_bytes(bytes_transferred)}, "
                 f"{files_deleted} deletions",
+                host=Host.SOURCE,
             )
             self._log(
-                Host.SOURCE,
                 LogLevel.DEBUG,
                 f"{prefix}Transferred {bytes_transferred} bytes for {folder.path!r}",
+                host=Host.SOURCE,
             )
 
         # No job-level completion update: every pass already closes its own bar at 100%

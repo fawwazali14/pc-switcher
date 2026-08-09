@@ -639,10 +639,10 @@ class AptSyncJob(PackageSyncJob):
             if keeping:
                 in_use[filename] = keeping
                 self._log(
-                    Host.TARGET,
                     LogLevel.FULL,
                     f"keeping repository {filename}: {self.machines.target} still installs "
                     f"{', '.join(keeping)} from it, so its deletion is not offered",
+                    host=Host.TARGET,
                 )
         self._conflicts = await self._probe.capture_repo_conflicts(
             {
@@ -910,10 +910,10 @@ class AptSyncJob(PackageSyncJob):
             if keeping:
                 kept[filename] = keeping
                 self._log(
-                    Host.TARGET,
                     LogLevel.FULL,
                     f"keeping repository {filename}: {self.machines.target} still installs "
                     f"{', '.join(keeping)} from it, so its deletion is not offered",
+                    host=Host.TARGET,
                 )
         return kept
 
@@ -1024,10 +1024,10 @@ class AptSyncJob(PackageSyncJob):
 
         for filename, keeping in withheld.items():
             self._log(
-                Host.TARGET,
                 LogLevel.FULL,
                 f"keeping repository {filename}: {self.machines.target} still installs "
                 f"{', '.join(keeping)} from it, so its approved deletion is not applied",
+                host=Host.TARGET,
             )
         return ReviewOutcome(
             decisions={
@@ -1079,16 +1079,16 @@ class AptSyncJob(PackageSyncJob):
         if self.context.dry_run:
             work = self._work
             for dest in work.derived.all_writes():
-                self._log(Host.TARGET, LogLevel.FULL, f"[dry-run] Would write {dest} from {self.machines.source}")
+                self._log(LogLevel.FULL, f"[dry-run] Would write {dest} from {self.machines.source}", host=Host.TARGET)
             if self._accepted_plan is not None and self._accepted_outcome is not None:
                 diffs = self._accepted_plan.diffs
                 decisions = self._accepted_outcome.decisions
                 surviving = work.keyrings.surviving_refs(diffs, decisions, work.derived.written_source_filenames)
                 for _local, dest in work.keyrings.writes(surviving):
                     self._log(
-                        Host.TARGET,
                         LogLevel.FULL,
                         f"[dry-run] Would write signing key {dest} from {self.machines.source}",
+                        host=Host.TARGET,
                     )
                 if any(
                     diff.item_class is ItemClass.APT_SOURCE
@@ -1099,9 +1099,9 @@ class AptSyncJob(PackageSyncJob):
                 ):
                     for dest in work.keyrings.unreferenced(surviving):
                         self._log(
-                            Host.TARGET,
                             LogLevel.FULL,
                             f"[dry-run] Would delete signing key {dest}, which no repository would reference",
+                            host=Host.TARGET,
                         )
         await super().apply()
 

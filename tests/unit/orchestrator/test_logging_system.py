@@ -205,15 +205,13 @@ class TestJobStartIsLogged:
         assert [call.args for call in job.info_calls_before_execute] == [("Job %s started", "stub_start_log")]
 
     @pytest.mark.asyncio
-    async def test_the_start_line_is_tagged_with_the_job_and_the_source(
-        self, wired_orchestrator: Orchestrator
-    ) -> None:
+    async def test_the_start_line_is_tagged_with_the_job_and_no_side(self, wired_orchestrator: Orchestrator) -> None:
         logger = cast(MagicMock, wired_orchestrator._logger)  # pyright: ignore[reportPrivateUsage]
         job = _StartLogRecordingJob(make_context(), logger)
 
         await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
 
-        assert logger.info.call_args_list[0].kwargs["extra"] == {"job": "stub_start_log", "host": "source"}
+        assert logger.info.call_args_list[0].kwargs["extra"] == {"job": "stub_start_log"}
 
 
 class _EndingJob(SyncJob):
@@ -253,10 +251,7 @@ class TestJobLifecycleLinesAreTaggedWithTheJob:
 
         await wired_orchestrator._execute_jobs([_EndingJob(make_context())])  # pyright: ignore[reportPrivateUsage]
 
-        assert _tag_of(logger.info.call_args_list, "completed successfully") == {
-            "job": "stub_ending",
-            "host": "source",
-        }
+        assert _tag_of(logger.info.call_args_list, "completed successfully") == {"job": "stub_ending"}
 
     @pytest.mark.asyncio
     async def test_the_skipped_line_carries_the_job(self, wired_orchestrator: Orchestrator) -> None:
@@ -265,7 +260,7 @@ class TestJobLifecycleLinesAreTaggedWithTheJob:
 
         await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
 
-        assert _tag_of(logger.warning.call_args_list, "skipped") == {"job": "stub_ending", "host": "source"}
+        assert _tag_of(logger.warning.call_args_list, "skipped") == {"job": "stub_ending"}
 
     @pytest.mark.asyncio
     async def test_the_failed_line_carries_the_job(self, wired_orchestrator: Orchestrator) -> None:
@@ -275,7 +270,7 @@ class TestJobLifecycleLinesAreTaggedWithTheJob:
         with pytest.raises(RuntimeError, match="boom"):
             await wired_orchestrator._execute_jobs([job])  # pyright: ignore[reportPrivateUsage]
 
-        assert _tag_of(logger.critical.call_args_list, "failed") == {"job": "stub_ending", "host": "source"}
+        assert _tag_of(logger.critical.call_args_list, "failed") == {"job": "stub_ending"}
 
     @pytest.mark.asyncio
     async def test_the_install_on_target_skip_carries_the_job(
@@ -287,4 +282,4 @@ class TestJobLifecycleLinesAreTaggedWithTheJob:
 
         await wired_orchestrator._install_on_target_job()  # pyright: ignore[reportPrivateUsage]
 
-        assert _tag_of(logger.warning.call_args_list, "skipped") == {"job": "install_on_target", "host": "target"}
+        assert _tag_of(logger.warning.call_args_list, "skipped") == {"job": "install_on_target"}

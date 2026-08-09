@@ -311,7 +311,7 @@ class VscodeStateSyncJob(SyncJob):
             raise JobSkipped(self.name, f"no VS Code state DBs found on {self.context.source_hostname}")
 
         total = len(present)
-        self._log(Host.SOURCE, LogLevel.INFO, f"{prefix}Syncing VS Code state DBs")
+        self._log(LogLevel.INFO, f"{prefix}Syncing VS Code state DBs", host=Host.SOURCE)
 
         for index, relpath in enumerate(present):
             source_db = home / relpath
@@ -325,9 +325,9 @@ class VscodeStateSyncJob(SyncJob):
 
             if self.context.dry_run:
                 self._log(
-                    Host.TARGET,
                     LogLevel.FULL,
                     f"{prefix}Would sync {label} ({mode}); preserving keys matching {globs}",
+                    host=Host.TARGET,
                 )
                 self._report_progress(ProgressUpdate(percent=int((index + 1) / total * 100)))
                 continue
@@ -335,7 +335,7 @@ class VscodeStateSyncJob(SyncJob):
             await self._sync_editor(source_db, target_db, target_exists, globs, label)
             self._report_progress(ProgressUpdate(percent=int((index + 1) / total * 100)))
 
-        self._log(Host.TARGET, LogLevel.INFO, f"{prefix}{total} VS Code state DB file(s) synced")
+        self._log(LogLevel.INFO, f"{prefix}{total} VS Code state DB file(s) synced", host=Host.TARGET)
         self._report_progress(ProgressUpdate(percent=100))
 
     async def _sync_editor(
@@ -401,9 +401,9 @@ class VscodeStateSyncJob(SyncJob):
                 self._raise(Host.TARGET, label, "atomic mv", move.stderr)
 
             self._log(
-                Host.TARGET,
                 LogLevel.FULL,
                 f"Synced {label} ({'merge' if target_exists else 'first-sync'})",
+                host=Host.TARGET,
             )
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -411,5 +411,5 @@ class VscodeStateSyncJob(SyncJob):
     def _raise(self, host: Host, label: str, step: str, stderr: str) -> None:
         """Log CRITICAL and raise; any exception halts the sync (orchestrator contract)."""
         message = f"{label} {step} failed: {stderr.strip()}"
-        self._log(host, LogLevel.CRITICAL, message)
+        self._log(LogLevel.CRITICAL, message, host=host)
         raise RuntimeError(message)

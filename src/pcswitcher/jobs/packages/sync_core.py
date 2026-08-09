@@ -433,10 +433,10 @@ class PackageSyncJob(SyncJob):
             absent = await self.observe_absent_marks(entries, on_source=on_source)
         except ProbeFailed as exc:
             self._log(
-                Host.SOURCE if on_source else Host.TARGET,
                 LogLevel.FULL,
                 f"could not check whether the marked {self.item_noun_plural} are still here ({exc}); "
                 "every mark is left as it is",
+                host=Host.SOURCE if on_source else Host.TARGET,
             )
             return frozenset()
         return absent & frozenset(entries)
@@ -493,10 +493,10 @@ class PackageSyncJob(SyncJob):
             absent = await self._absent_marks(entries, on_source=on_source)
             for item_id in sorted(absent):
                 self._log(
-                    Host.SOURCE if on_source else Host.TARGET,
                     LogLevel.INFO,
                     f"dropped the machine-specific mark on {entries[item_id].label}: "
                     "the item is no longer on this machine",
+                    host=Host.SOURCE if on_source else Host.TARGET,
                 )
             await decision_file.drop(absent)
 
@@ -861,13 +861,13 @@ class PackageSyncJob(SyncJob):
         total = len(apply_diffs)
 
         if total == 0:
-            self._log(Host.TARGET, LogLevel.INFO, f"{prefix}No {self.item_noun_plural} to change")
+            self._log(LogLevel.INFO, f"{prefix}No {self.item_noun_plural} to change", host=Host.TARGET)
             self._report_progress(ProgressUpdate(percent=100))
         else:
             self._log(
-                Host.TARGET,
                 LogLevel.INFO,
                 f"{prefix}Applying {counted(total, 'change', 'changes')} to {self.item_noun_plural}",
+                host=Host.TARGET,
             )
 
             for index, diff in enumerate(apply_diffs):
@@ -878,26 +878,28 @@ class PackageSyncJob(SyncJob):
                     # the whole report. Without it the preview says strictly less about
                     # an item than the interactive review does.
                     detail = f" — {diff.detail}" if diff.detail else ""
-                    self._log(Host.TARGET, LogLevel.FULL, f"{prefix}Would {diff.action.value} {diff.label}{detail}")
+                    self._log(
+                        LogLevel.FULL, f"{prefix}Would {diff.action.value} {diff.label}{detail}", host=Host.TARGET
+                    )
                 else:
                     await self._converge_one(diff, failures, declined)
             self._report_progress(ProgressUpdate(percent=100))
 
             succeeded = total - len(failures) - len(declined)
             self._log(
-                Host.TARGET,
                 LogLevel.INFO,
                 f"{prefix}{succeeded}/{total} changes applied to {self.item_noun_plural}",
+                host=Host.TARGET,
             )
 
         # Outside the branch above: a run whose every converge declined still has to say so.
         if declined:
             summary = "; ".join(f"{diff.label}: {reason}" for diff, reason in declined)
             self._log(
-                Host.TARGET,
                 LogLevel.INFO,
                 f"{counted(len(declined), 'change', 'changes')} to {self.item_noun_plural} "
                 f"not applied, by the user's answer: {summary}",
+                host=Host.TARGET,
             )
 
         # After the converge loop, so a mark this run's own changes emptied out is gone by
@@ -909,9 +911,9 @@ class PackageSyncJob(SyncJob):
         if all_failures:
             summary = "; ".join(f"{diff.label}: {stderr.strip()}" for diff, stderr in all_failures)
             self._log(
-                Host.TARGET,
                 LogLevel.INFO,
                 f"{counted(len(all_failures), self.item_noun, self.item_noun_plural)} failed: {summary}",
+                host=Host.TARGET,
             )
             raise PackageItemFailures(self.item_noun, self.item_noun_plural, all_failures)
 
@@ -939,9 +941,9 @@ class PackageSyncJob(SyncJob):
                 continue
             decision = decisions.get(diff.item_id, Decision.SKIP_ONCE)
             self._log(
-                Host.TARGET,
                 LogLevel.FULL,
                 f"reviewed {diff.label} ({diff.action.value}): {_DECISION_WORDS[decision]}",
+                host=Host.TARGET,
             )
 
     def _unresolved_as_failures(self, plan: PackagePlan, outcome: ReviewOutcome) -> list[tuple[ItemDiff, str]]:
@@ -1046,26 +1048,26 @@ class PackageSyncJob(SyncJob):
             # (`PKG-FR-ASK-AGAIN`). Per-item detail at FULL like every other converge line,
             # never ERROR; the INFO summary after the loop names it and its reason.
             declined.append((diff, str(exc)))
-            self._log(Host.TARGET, LogLevel.FULL, f"{diff.label} not applied: {exc}")
+            self._log(LogLevel.FULL, f"{diff.label} not applied: {exc}", host=Host.TARGET)
             return
         except ConvergeItemFailed as exc:
             failures.append((diff, str(exc)))
-            self._log(Host.TARGET, LogLevel.ERROR, f"{diff.label} failed: {exc}", stderr=str(exc))
+            self._log(LogLevel.ERROR, f"{diff.label} failed: {exc}", stderr=str(exc), host=Host.TARGET)
             return
 
         if result.success:
             self._log(
-                Host.TARGET,
                 LogLevel.FULL,
                 f"{diff.action.value} {diff.label} on {self.machines.target}",
+                host=Host.TARGET,
             )
         else:
             failures.append((diff, result.stderr))
             self._log(
-                Host.TARGET,
                 LogLevel.ERROR,
                 f"{diff.label} failed: {result.stderr.strip()}",
                 stderr=result.stderr,
+                host=Host.TARGET,
             )
 
     async def execute(self) -> None:

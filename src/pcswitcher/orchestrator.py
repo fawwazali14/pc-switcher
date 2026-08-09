@@ -509,10 +509,10 @@ class Orchestrator:
             self._logger.warning(
                 "Sync finished with job failures: %s",
                 session.error_message,
-                extra={"job": "orchestrator", "host": "source"},
+                extra={"job": "orchestrator"},
             )
         else:
-            self._logger.info("Sync completed successfully", extra={"job": "orchestrator", "host": "source"})
+            self._logger.info("Sync completed successfully", extra={"job": "orchestrator"})
 
     async def run(self) -> SyncSession:  # noqa: PLR0915
         """Execute the complete sync workflow.
@@ -614,7 +614,7 @@ class Orchestrator:
         if self._dry_run:
             self._logger.info(
                 "[DRY-RUN] Preview mode - no changes will be made",
-                extra={"job": "orchestrator", "host": "source"},
+                extra={"job": "orchestrator"},
             )
 
         try:
@@ -645,7 +645,7 @@ class Orchestrator:
             self._ui.set_current_step(SyncStep.OUT_OF_ORDER_CHECK, "Out-of-order check")
 
             # SyncStep 5: Discover and validate jobs
-            self._logger.info("Discovering and validating jobs", extra={"job": "orchestrator", "host": "source"})
+            self._logger.info("Discovering and validating jobs", extra={"job": "orchestrator"})
             jobs, unresolved_job_results = await self._discover_and_validate_jobs()
             self._ui.set_current_step(SyncStep.DISCOVER_JOBS, "Discover jobs")
 
@@ -654,7 +654,7 @@ class Orchestrator:
             self._ui.set_current_step(SyncStep.DISK_CHECK, "Disk check")
 
             # SyncStep 7: Pre-sync snapshots
-            self._logger.info("Creating pre-sync snapshots", extra={"job": "orchestrator", "host": "source"})
+            self._logger.info("Creating pre-sync snapshots", extra={"job": "orchestrator"})
             await self._create_snapshots(SnapshotPhase.PRE)
             self._ui.set_current_step(SyncStep.PRE_SNAPSHOT, "Pre-sync snapshots")
 
@@ -672,7 +672,7 @@ class Orchestrator:
             self._ui.set_current_step(SyncStep.SYNC_CONFIG, "Sync config")
 
             # SyncStep 10: Run sync jobs — _execute_jobs sets the 10a/10b sub-steps per job
-            self._logger.info("Starting sync operations", extra={"job": "orchestrator", "host": "source"})
+            self._logger.info("Starting sync operations", extra={"job": "orchestrator"})
             # Pause snapd auto-refresh on both hosts across the whole RUN_JOBS window
             # (snap convergence → folder_sync); released in _cleanup (decision 4).
             await self._hold_snap_autorefresh()
@@ -683,7 +683,7 @@ class Orchestrator:
             session.job_results = job_results
 
             # SyncStep 11: Post-sync snapshots
-            self._logger.info("Creating post-sync snapshots", extra={"job": "orchestrator", "host": "source"})
+            self._logger.info("Creating post-sync snapshots", extra={"job": "orchestrator"})
             await self._create_snapshots(SnapshotPhase.POST)
             self._ui.set_current_step(SyncStep.POST_SNAPSHOT, "Post-sync snapshots")
 
@@ -707,7 +707,7 @@ class Orchestrator:
             session.status = SessionStatus.INTERRUPTED
             session.ended_at = datetime.now(UTC)
             session.error_message = "Sync interrupted by user (SIGINT)"
-            self._logger.warning("Sync interrupted by user", extra={"job": "orchestrator", "host": "source"})
+            self._logger.warning("Sync interrupted by user", extra={"job": "orchestrator"})
             raise
 
         except SyncAborted as e:
@@ -721,7 +721,7 @@ class Orchestrator:
             session.ended_at = datetime.now(UTC)
             session.error_message = str(e)
             what = "Sync aborted by user" if isinstance(e, SyncAbortedByUser) else "Sync aborted"
-            self._logger.warning("%s: %s", what, e, extra={"job": "orchestrator", "host": "source"})
+            self._logger.warning("%s: %s", what, e, extra={"job": "orchestrator"})
             raise
 
         except SyncLockedError as e:
@@ -731,7 +731,7 @@ class Orchestrator:
             session.status = SessionStatus.ABORTED
             session.ended_at = datetime.now(UTC)
             session.error_message = str(e)
-            self._logger.warning("Sync blocked: %s", e, extra={"job": "orchestrator", "host": "source"})
+            self._logger.warning("Sync blocked: %s", e, extra={"job": "orchestrator"})
             raise
 
         except Exception as e:
@@ -743,7 +743,7 @@ class Orchestrator:
             # phase, and — once jobs run in parallel — job failures that bypass
             # the sequential per-job handler), so the same cause isn't doubled.
             if not _failure_already_logged(e):
-                self._logger.critical("Sync failed: %s", e, extra={"job": "orchestrator", "host": "source"})
+                self._logger.critical("Sync failed: %s", e, extra={"job": "orchestrator"})
             raise
 
         finally:
@@ -875,13 +875,14 @@ class Orchestrator:
                     error_message=e.reason,
                 )
             )
-            # Tagged with the job for the same reason as the job loop's own lifecycle
-            # lines: the `job` field says which job the record is about.
+            # Tagged with the job, and with no side, for the same reasons as the job loop's
+            # own lifecycle lines: the `job` field says which job the record is about, and a
+            # job's life is not about one machine.
             self._logger.warning(
                 "Job %s skipped: %s",
                 install_job.display_name,
                 e.reason,
-                extra={"job": install_job.name, "host": "target"},
+                extra={"job": install_job.name},
             )
         else:
             self._job_results.append(
@@ -951,7 +952,7 @@ class Orchestrator:
             self._logger.warning(
                 "Job module pcswitcher.jobs.%s not found",
                 job_name,
-                extra={"job": "orchestrator", "host": "source"},
+                extra={"job": "orchestrator"},
             )
             return None
 
@@ -969,7 +970,7 @@ class Orchestrator:
             "No SyncJob with name=%s found in module pcswitcher.jobs.%s",
             job_name,
             job_name,
-            extra={"job": "orchestrator", "host": "source"},
+            extra={"job": "orchestrator"},
         )
         return None
 
@@ -1248,7 +1249,7 @@ class Orchestrator:
                 self._logger.debug(
                     "Job %s is disabled in config",
                     job_name,
-                    extra={"job": "orchestrator", "host": "source"},
+                    extra={"job": "orchestrator"},
                 )
                 continue
 
@@ -1355,7 +1356,7 @@ class Orchestrator:
         assert self._local_executor is not None
         assert self._remote_executor is not None
 
-        self._logger.info("Checking disk space on both hosts", extra={"job": "orchestrator", "host": "source"})
+        self._logger.info("Checking disk space on both hosts", extra={"job": "orchestrator"})
 
         # Parse threshold once (same for both hosts)
         threshold_type, threshold_value = parse_threshold(self._config.disk.preflight_minimum)
@@ -1531,10 +1532,15 @@ class Orchestrator:
                         # supplies), and the orchestrator being the code that emits a job's
                         # start and end is an implementation detail. Tagged otherwise, filtering
                         # the column for one job gave its start and its work but not its end.
+                        #
+                        # None of the four carries a side: a job's life is the job's, and most
+                        # jobs read one machine to change the other, so a side here could only
+                        # be picked rather than observed (#291). The job's own records name the
+                        # machine each of them is about.
                         self._logger.info(
                             "Job %s started",
                             job.display_name,
-                            extra={"job": job.name, "host": "source"},
+                            extra={"job": job.name},
                         )
                         # Labels this job's executor traffic in the debug trace (#210) and
                         # in the --confirm-each-command prompt. Set per job rather than per
@@ -1554,7 +1560,7 @@ class Orchestrator:
                         self._logger.info(
                             "Job %s completed successfully",
                             job.display_name,
-                            extra={"job": job.name, "host": "source"},
+                            extra={"job": job.name},
                         )
                         self._ui.close_job_bar(job.name, job.display_name)
 
@@ -1586,7 +1592,7 @@ class Orchestrator:
                             "Job %s skipped: %s",
                             job.display_name,
                             e.reason,
-                            extra={"job": job.name, "host": "source"},
+                            extra={"job": job.name},
                         )
                         self._ui.close_job_bar(job.name, job.display_name, "skipped")
                     except Exception as e:
@@ -1605,7 +1611,7 @@ class Orchestrator:
                             "Job %s failed: %s",
                             job.display_name,
                             e,
-                            extra={"job": job.name, "host": "source"},
+                            extra={"job": job.name},
                         )
                         self._ui.close_job_bar(job.name, job.display_name, "failed")
                         if _failure_stays_in_its_job(job, e):

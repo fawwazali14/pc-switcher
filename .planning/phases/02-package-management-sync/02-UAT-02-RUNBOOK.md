@@ -195,6 +195,8 @@ The Recent Logs panel follows the same rule in its message text (#276): a job co
 
 That prefix now holds for a job's whole life (#289 is fixed): `Job Apt packages started`, its own work, and `Job Apt packages completed successfully` all read `[apt_sync]`, as do the `skipped` and `failed` endings; the install-on-target skip reads `[install_on_target]`. An ending line tagged `[orchestrator]` is a regression. `[orchestrator]` still belongs to the run's own steps — locking, connecting, snapshots, config sync.
 
+None of those four lines carries a `(source)` or `(target)` side any more (#291 is fixed), and neither do the run's own lines about both machines — `Sync completed successfully`, `Creating pre-sync snapshots`, `Checking disk space on both hosts`. A side stays only where the record is about that one machine, so `(target)` on `Configuration sync completed` is right and a side on a job's start is a regression.
+
 Every job of the job loop — the seven package jobs, `Folder sync` and `VS Code state` — has a bar from the moment it starts (#288 is fixed), and the bar says what the job is doing rather than sitting at a percentage it cannot know: it opens on `starting`, then a package job reads `checking both machines` while it plans, `waiting for your answers` through its review, and `applying your answers` until it has items to count, then a real percentage per item. One of those jobs named by the status line but absent from the bars is a regression, and so is a bar parked at `0%` for a minute of probing. `Btrfs snapshots` and `Install on target` run outside the loop and report no progress, so neither has a bar at any point — the status line and the Recent Logs panel are where you follow those two steps.
 
 ### 3.1 The three exclusions
@@ -321,10 +323,13 @@ Each editor closes onto a panel of its own, titled `Install-or-update snippet fo
 
 This one refuses an empty body and a body of only spaces with `Neither snippet can be empty — enter both, or choose a skip.`, and puts the three answers again. Try each refusal on each of its two editors: submitting a real install body and then an empty version body must not leave a half-written entry anywhere. Then supply real bodies:
 
+Install or update:
 ```bash
-# install-or-update
 sudo mkdir -p /opt/pcsw-uat-app && echo hi | sudo tee /opt/pcsw-uat-app/README >/dev/null
-# installed-version
+```
+
+Installed-version
+```bash
 echo 1.0
 ```
 
