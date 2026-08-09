@@ -156,7 +156,7 @@ Each enabled job needs passwordless sudo where it writes:
 | Job | Source | Target |
 | --- | --- | --- |
 | `apt_sync` | required | required |
-| `snap_sync` | required | required |
+| `snap_sync` | none | required |
 | `flatpak_sync` | none | required only when a system-scope item is in play on either machine |
 | `manual_deb_sync` | none | none |
 | `manual_snap_sync` | none | none |
@@ -166,6 +166,8 @@ Each enabled job needs passwordless sudo where it writes:
 The `manual_*` jobs pre-validate no sudo: detection only reads. An approved removal on any of the first three needs root on the target and fails as its own item if that is not available. Snippet privilege is the author's — put `sudo` inside the snippet if needed.
 
 A run also pauses each machine's automatic updaters for the sync window and restores them afterwards, so nothing moves package state under a job mid-convergence. Each pause is held only where a job that is enabled needs it: snapd's auto-refresh for `snap_sync` and `folder_sync`, the apt update timers for `apt_sync`, `manual_deb_sync` and `manual_installs_sync`. The pauses expire on their own if the run dies.
+
+The pauses are pc-switcher's own commands, on both machines, so they need passwordless sudo on both — `/usr/bin/snap` for the snapd pause, `/usr/bin/systemctl` and `/usr/bin/systemd-run` for the apt one. Whichever of them your enabled jobs ask for is checked before the run starts, and a machine that cannot run them refuses the sync with the sudoers line to add. That is why a run of nothing but `manual_deb_sync` still asks both machines for sudo, though the job itself needs none.
 
 ## Auditing every command
 

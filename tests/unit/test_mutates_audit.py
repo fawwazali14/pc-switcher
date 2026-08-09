@@ -265,14 +265,18 @@ _READ_ONLY_CALLS: dict[str, int] = {
     "jobs/snap_sync.py::target_snap_revisions::run_command": 1,
     "jobs/snap_sync.py::SnapSyncJob.capture_source_items::run_command": 1,
     "jobs/snap_sync.py::SnapSyncJob.query_target_items::run_command": 1,
-    # `snap version` and the sudo precondition on each machine, then
+    # `snap version` on each machine, the sudo precondition on the target (the source's grant
+    # belongs to the run's auto-refresh pause and is probed there), then
     # `sudo snap get system refresh.hold` on each — the prior auto-refresh policy, captured
     # so the restore can write it back.
-    "jobs/snap_sync.py::SnapSyncJob.validate::run_command": 6,
+    "jobs/snap_sync.py::SnapSyncJob.validate::run_command": 5,
     "jobs/vscode_state_sync.py::VscodeStateSyncJob.validate::run_command": 1,
     "jobs/vscode_state_sync.py::VscodeStateSyncJob.execute::run_command": 1,
     "orchestrator.py::Orchestrator._resolve_target_canonical_hostname::run_command": 1,
     "orchestrator.py::Orchestrator._check_out_of_order::run_command": 1,
+    # The run's own sudo precondition, one branch per machine: the grant the pauses the
+    # enabled jobs declared will need. `sudo --non-interactive true` changes nothing.
+    "orchestrator.py::Orchestrator._probe_passwordless_sudo::run_command": 2,
 }
 
 # Reads left ungated even though something about them is not provably state-free. Each
@@ -1129,17 +1133,22 @@ class TestTransferDestinations:
 # start, and never while applying, where it is a half-changed machine.
 _PRECONDITION_PROBES = ("sudo --non-interactive", "fuser /var/lib/dpkg/lock-frontend")
 
-# Every `validate()` that issues one, with how many it issues. A count per body, like
+# Every validation body that issues one, with how many it issues. A count per body, like
 # `_READ_ONLY_CALLS`: a probe that moves out of validation disappears from its count, and one
-# that appears anywhere else has no entry at all.
+# that appears anywhere else has no entry at all. A body here is a job's `validate()` or the
+# run-level check the orchestrator makes in the same step, for the machine-wide pauses the
+# enabled jobs declared — those commands are the orchestrator's, so no job's `validate()`
+# covers them.
 _PRECONDITION_PROBE_SITES: dict[str, int] = {
     # Passwordless sudo on both machines, then the target's dpkg frontend lock.
     "jobs/apt_sync/job.py::AptSyncJob.validate": 3,
-    # Passwordless sudo on both machines: the target installs, the source takes the
-    # auto-refresh pause.
-    "jobs/snap_sync.py::SnapSyncJob.validate": 2,
+    # The target only: it is what installs. The source's `snap` grant is the auto-refresh
+    # pause's, probed with the run's other pause grants below.
+    "jobs/snap_sync.py::SnapSyncJob.validate": 1,
     # The target only, and only when a system-scope ref, remote or mask is actually in play.
     "jobs/flatpak_sync.py::FlatpakSyncJob.validate": 1,
+    # One branch per machine, for the union of the declared pauses' grants.
+    "orchestrator.py::Orchestrator._probe_passwordless_sudo": 2,
 }
 
 
@@ -1153,8 +1162,11 @@ class TestPreconditionProbes:
     converged, and there is nothing useful to say about it.
 
     So the property is structural: the commands that establish those assumptions exist only
-    inside a `validate()` body. Command text is a variable at most call sites, so each one is
-    resolved back to its literals rather than matched on the expression.
+    inside a validation body — a job's `validate()`, or the run-level check the orchestrator
+    makes in the same step for the pauses its enabled jobs declared, which is listed by name in
+    `_PRECONDITION_PROBE_SITES` because it is not one of a job's. Command text is a variable at
+    most call sites, so each one is resolved back to its literals rather than matched on the
+    expression.
 
     What it cannot see: a probe whose command is assembled at run time from parts that never
     appear as one literal — `f"sudo {flag} true"` — would not be recognised. Nothing does that
@@ -1194,9 +1206,9 @@ class TestPreconditionProbes:
             )
 
         problems = [
-            f"{key}: probes a precondition outside a validate() body:\n" + "\n".join(sites)
+            f"{key}: probes a precondition outside a validation body:\n" + "\n".join(sites)
             for key, sites in sorted(found.items())
-            if not key.endswith(".validate")
+            if not key.endswith(".validate") and key not in _PRECONDITION_PROBE_SITES
         ]
         for key, expected in sorted(_PRECONDITION_PROBE_SITES.items()):
             actual = len(found.get(key, ()))

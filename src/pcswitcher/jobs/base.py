@@ -264,6 +264,13 @@ class SyncJob(Job):
         a job's exposure to a background updater is a property of what the job does at all,
         not of how it is configured.
 
+        A declaration also carries its own privilege: each pause names the binaries it runs
+        under sudo (`RunPause.sudo_commands`), and the orchestrator establishes the grant for
+        the whole union on both machines in the validation step, before any job runs. So a job
+        declaring a pause needs to say nothing about sudo in its own `validate()` — but it
+        cannot decline the check either, which is the point: the declaration and the grant
+        cannot drift apart.
+
         Returns:
             The pauses this job depends on; empty (the default) for a job that does not
             care whether either updater runs during the sync.

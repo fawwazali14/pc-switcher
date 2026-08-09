@@ -393,7 +393,7 @@ systemctl is-active apt-daily.timer apt-daily-upgrade.timer
 ssh testuser@"$PC2" 'systemctl is-active apt-daily.timer apt-daily-upgrade.timer'
 ```
 
-Both machines must read exactly as they did before the run started. The pause no longer follows `apt_sync` alone: `manual_deb_sync` and `manual_installs_sync` ask for it too, so a run with `apt_sync: false` and either of those on must still show it. The snapd pause is asked for by `snap_sync` and `folder_sync`, and by neither `manual_snap_sync` nor anything else. To see the suspension itself, run the sync again with `--confirm-each-command` and watch for the `systemctl stop` on each machine and the `systemd-run` that schedules the restart; or read them out of the log afterwards:
+Both machines must read exactly as they did before the run started. The pause no longer follows `apt_sync` alone: `manual_deb_sync` and `manual_installs_sync` ask for it too, so a run with `apt_sync: false` and either of those on must still show it. The snapd pause is asked for by `snap_sync` and `folder_sync`, and by neither `manual_snap_sync` nor anything else. Whichever pauses a run's jobs ask for, the sudo they need on both machines is now checked in the validation step, so a machine without passwordless sudo refuses the run up front naming the pause instead of warning mid-run — both VMs grant it, so nothing here changes for this walk. To see the suspension itself, run the sync again with `--confirm-each-command` and watch for the `systemctl stop` on each machine and the `systemd-run` that schedules the restart; or read them out of the log afterwards:
 
 ```bash
 LOG=$(ls -t ~/.local/share/pc-switcher/logs/sync-*.log | head -1)

@@ -66,6 +66,7 @@ from pcswitcher.models import (
     ValidationError,
 )
 from pcswitcher.step_gate import StepGate, TerminalUIStepGate
+from pcswitcher.sudoers import passwordless_sudo_hint
 from pcswitcher.sync_history import (
     HISTORY_PATH,
     SyncRole,
@@ -146,6 +147,11 @@ _APT_TIMER_RESTORE_UNIT = "pc-switcher-apt-timers"
 # running, and `UnitFileState` is the enablement the machine would return to — recorded so a
 # host's prior policy is captured in full rather than inferred from whether it was running.
 _APT_TIMER_PROPERTIES = ("Id", "LoadState", "ActiveState", "UnitFileState")
+
+# Both pauses above are `sudo` on both machines, and the grant for them is established while
+# validating (`_validate_run_pause_grants`). The same probe every job's `validate()` issues, so
+# a machine reads the same answer wherever it is asked.
+_PASSWORDLESS_SUDO_PROBE = "sudo --non-interactive true"
 
 
 def _parse_systemctl_show(output: str) -> dict[str, dict[str, str]]:
@@ -1021,6 +1027,64 @@ class Orchestrator:
             pauses |= job_class.declare_run_pauses()
         return frozenset(pauses)
 
+    async def _probe_passwordless_sudo(self, host: Host) -> bool:
+        """Whether `host` grants passwordless sudo, by the probe every job's `validate()` uses.
+
+        Read-only, so no `mutates`: `true` changes nothing, and running it under sudo does not
+        make it a write. Same executor shell contract as `_run_snap_hold_command` — the local
+        executor on the source, `login_shell=False` on the target.
+        """
+        if host is Host.SOURCE:
+            assert self._local_executor is not None
+            result = await self._local_executor.run_command(_PASSWORDLESS_SUDO_PROBE)
+        else:
+            assert self._remote_executor is not None
+            result = await self._remote_executor.run_command(_PASSWORDLESS_SUDO_PROBE, login_shell=False)
+        return result.success
+
+    async def _validate_run_pause_grants(self) -> list[ValidationError]:
+        """Check the sudo the declared pauses need, on both machines, before any job runs.
+
+        The run-level half of `PKG-FR-SUDO-PRECONDITION`: the pauses are the orchestrator's own
+        commands, so no job's `validate()` covers them, and declaring a pause is what puts its
+        grant here (`RunPause.sudo_commands`). Without this a `folder_sync`-only or
+        `manual_deb_sync`-only run reached a `sudo snap set` or `sudo systemctl` on both
+        machines with nothing having established the grant, and the user met the refusal
+        mid-run — where the pause degrades to a warning and the assumption is never stated —
+        instead of up front with the remediation.
+
+        One probe per machine for the whole union, never one per declaring job: two jobs asking
+        for the same pause ask for one grant, and it is reported once. The message names the
+        binaries of every declared pause together, since one sudoers line covers them.
+
+        Not skipped in dry-run, unlike the pauses themselves: validation says whether the
+        machines are ready for a sync, and a dry run that passed here and failed in the real
+        run would be exactly the surprise this check exists to remove.
+        """
+        pauses = sorted(self._required_run_pauses())
+        if not pauses:
+            return []
+        commands = sorted({command for pause in pauses for command in pause.sudo_commands})
+        purposes = " and ".join(pause.purpose for pause in pauses)
+
+        errors: list[ValidationError] = []
+        for host in (Host.SOURCE, Host.TARGET):
+            if await self._probe_passwordless_sudo(host):
+                continue
+            username = self._connection.username if host is Host.TARGET and self._connection is not None else None
+            errors.append(
+                ValidationError(
+                    job="orchestrator",
+                    host=host,
+                    message=(
+                        f"passwordless sudo is not available on {self._machine_name(host)} "
+                        f"(required to {purposes} on both machines).\n"
+                        + passwordless_sudo_hint(commands, user=username)
+                    ),
+                )
+            )
+        return errors
+
     @staticmethod
     def _dry_run_preview_hint(tgt: str) -> str:
         """Job-agnostic dry-run guidance shared by the first-sync and out-of-order warnings.
@@ -1319,6 +1383,10 @@ class Orchestrator:
             errors = await job.validate()
             if errors:
                 validation_errors.extend(errors)
+
+        # And the run's own: the machine-wide pauses the enabled jobs declared are the
+        # orchestrator's commands, so no job's validate() covers their grant.
+        validation_errors.extend(await self._validate_run_pause_grants())
 
         if validation_errors:
             error_msgs = [f"  - {e.job} ({e.host.value}): {e.message}" for e in validation_errors]

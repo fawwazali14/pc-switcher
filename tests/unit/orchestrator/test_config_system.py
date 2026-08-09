@@ -1130,7 +1130,9 @@ class TestJobDiscoveryFollowsTheConfig:
         jobs, _ = await wired_orchestrator._discover_and_validate_jobs()  # pyright: ignore[reportPrivateUsage]
         await wired_orchestrator._execute_jobs(jobs)  # pyright: ignore[reportPrivateUsage]
 
-        assert resolved == ["snap_sync"]
+        # Which NAMES are resolved is the property; a name is resolved once to build the job
+        # and once to read the pauses it declares, both by class and neither of them a job.
+        assert set(resolved) == {"snap_sync"}
         assert [job.name for job in jobs] == ["snap_sync"]
         assert journal == ["validate:snap_sync", "execute:snap_sync"]
 

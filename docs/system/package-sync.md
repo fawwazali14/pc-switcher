@@ -161,25 +161,32 @@ Decomposes [The model](../planning/package-sync-user-requirements.md#the-model) 
 
 Decomposes the validation and review paragraphs of [What happens during a sync](../planning/package-sync-user-requirements.md#what-happens-during-a-sync).
 
-- **PKG-FR-SUDO-PRECONDITION**: Each package job MUST establish in the validation step that it has passwordless sudo wherever it needs it, and MUST fail validation naming the machine that lacks it rather than degrading.
+- **PKG-FR-SUDO-PRECONDITION**: Each package job MUST establish in the validation step that it has passwordless sudo wherever its own commands need it, and MUST fail validation naming the machine that lacks it rather than degrading.
 
   | Job | Source | Target |
   | --- | --- | --- |
   | `apt_sync` | required | required |
-  | `snap_sync` | required | required |
+  | `snap_sync` | none | required |
   | `flatpak_sync` | none | only when a system-scope item exists on either machine |
   | `manual_deb_sync` | none | none |
   | `manual_snap_sync` | none | none |
   | `manual_flatpak_sync` | none | none |
   | `manual_installs_sync` | none | none |
 
-  Lineage: 002-package-sync  
-  Impl: each job's `validate()`
+  A run MUST establish, in the same step, the grant each machine-wide pause its enabled jobs declared needs — on both machines, once for the whole set however many jobs asked for it, and reported once. That grant MUST belong to the pause rather than to any job, so declaring a pause is what puts its check in the run and no job can declare one whose grant nothing establishes. A missing grant here is a refusal to start, never a degraded run: the pauses' own continue-anyway rule covers a suspension that fails on a machine, not one that was never permitted.
+
+  | Pause | Grant | Machines |
+  | --- | --- | --- |
+  | snapd auto-refresh (`PKG-FR-SNAP-REFRESH-PAUSE`) | `/usr/bin/snap` | both |
+  | the apt update timers (`PKG-FR-APT-TIMER-PAUSE`) | `/usr/bin/systemctl`, `/usr/bin/systemd-run` | both |
+
+  Lineage: 002-package-sync, GitHub #292  
+  Impl: each job's `validate()`; `RunPause.sudo_commands` with orchestrator `_validate_run_pause_grants` for the run's own
 - **PKG-FR-APT-DPKG-LOCK**: `apt_sync` MUST refuse to start while the target's dpkg lock is held, and MUST NOT wait on it silently. The refusal MUST name both operations that could be holding it (a user's own package command and the system's automatic updates), MUST NOT assert which of them it is, and MUST give the remedy: wait for it to finish and run the sync again.  
   Lineage: 002-package-sync
 - **PKG-FR-APT-TIMER-PAUSE**: The system's own apt update timers MUST be suspended on both machines for the duration of a run where any enabled job depends on them standing still. Which jobs those are MUST be each job's own declaration rather than a list held elsewhere, and a run MUST suspend the timers where any one of its enabled jobs asks. Each machine's timers MUST be restarted afterwards, and only the timers that were running MUST be stopped and restarted. Where a machine's timer state cannot be read, that machine MUST be left untouched. Where the suspension cannot be applied, the run MUST say so and MUST continue with that machine unsuspended rather than failing. The suspension MUST undo itself, so a run that dies without cleaning up MUST NOT leave a machine's automatic updates off. Where a run finds such an undo still pending on a machine, it MUST push it past the end of its own run rather than let it fire inside one, MUST NOT carry it out while the run is starting, and MUST carry it out and clear it once the run is over. Where it cannot be carried out, it MUST be left pending. The run MUST report the suspension and the restart once per machine, against the machine it happened on, and a machine it stopped nothing on MUST claim neither.  
   Lineage: 002-package-sync, GitHub #292  
-  Impl: orchestrator `_suspend_apt_timers`, `_defer_pending_apt_timer_restore`, `_settle_outstanding_apt_timer_restore`; transient unit via `systemd-run --on-active`; `SyncJob.declare_run_pauses` on `apt_sync`, `manual_deb_sync` and `manual_installs_sync`, unioned by `_required_run_pauses`  
+  Impl: orchestrator `_suspend_apt_timers`, `_defer_pending_apt_timer_restore`, `_settle_outstanding_apt_timer_restore`; transient unit via `systemd-run --on-active`; `SyncJob.declare_run_pauses` on `apt_sync`, `manual_deb_sync` and `manual_installs_sync`, unioned by `_required_run_pauses`; its sudo grant established up front (`PKG-FR-SUDO-PRECONDITION`)  
   Rationale: see [package-sync-rationale.md#pkg-fr-apt-timer-pause](../adr/considerations/package-sync-rationale.md#pkg-fr-apt-timer-pause)
 - **PKG-FR-HARMLESS-DEFAULT**: Every reviewed item's default answer MUST be the action that does no harm — apply for an install, skip for anything that removes or overwrites. Where NO answer is harmless — every one of them writes a record that outlives the run — no item MUST start answered, and confirming MUST be refused until every item carries an answer, naming those that do not.  
   Lineage: 002-package-sync  
@@ -358,7 +365,7 @@ Decomposes [snap](../planning/package-sync-user-requirements.md#snap).
   Lineage: 002-package-sync
 - **PKG-FR-SNAP-REFRESH-PAUSE**: Automatic snap refreshes MUST be suspended on both machines for the duration of a run where any enabled job depends on snap revisions standing still, and MUST NOT interfere with the run's own revision convergence. Which jobs those are MUST be each job's own declaration rather than a list held elsewhere, and a run MUST suspend refreshes where any one of its enabled jobs asks — including where the job that converges snaps is not itself enabled. Each machine's prior refresh policy MUST be restored afterwards, including an indefinite hold the user set. Where the prior policy cannot be read on a machine, that machine's policy MUST be left untouched. Where the suspension cannot be set, the run MUST say so and MUST continue with that machine unsuspended. The suspension MUST expire by itself, so a run that dies without cleaning up MUST NOT leave a machine's automatic refreshes suspended. The run MUST report the suspension and its undoing once per machine, against the machine it happened on, and a machine it left untouched MUST claim neither.  
   Lineage: 002-package-sync, ADR-020-D-SNAP-REVISION, GitHub #292  
-  Impl: `SyncJob.declare_run_pauses` on `snap_sync` and `folder_sync`; orchestrator `_required_run_pauses` unions the enabled jobs' declarations
+  Impl: `SyncJob.declare_run_pauses` on `snap_sync` and `folder_sync`; orchestrator `_required_run_pauses` unions the enabled jobs' declarations; its sudo grant established up front (`PKG-FR-SUDO-PRECONDITION`)
 - **PKG-FR-SNAP-DATA-BOUNDARY**: Data directories of revisions the target's snapd never installed MUST NOT be synced.  
   Lineage: 002-package-sync  
   Impl: `snap_sync.target_snap_revisions()`; `snap_sync_exclude_paths()`; `folder_sync` calls both once per run

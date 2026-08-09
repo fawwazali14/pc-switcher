@@ -511,6 +511,10 @@ class ManualInstallsSyncJob(UnreproducibleSyncJob):
         reported like any other. An approved `rm --recursive --force` under `/opt` needs it
         too and is treated the same way: a run that approves no removal needs no privilege at
         all, and demanding it up front would refuse the job to every user who only installs.
+        The apt-timer pause this job declares (`declare_run_pauses`) is the exception, and not
+        this job's to check: its commands are the orchestrator's, known in advance and run on
+        both machines whatever the review decides, so its grant is established once for the run
+        from the declaration.
 
         Sequential checks appending to `errors`, never raising mid-validate (matches
         `AptSyncJob.validate()`'s shape).

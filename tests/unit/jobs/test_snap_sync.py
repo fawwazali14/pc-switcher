@@ -1707,18 +1707,20 @@ class TestValidate:
         assert any(e.host is Host.TARGET and "sudo" in e.message for e in errors)
 
     @pytest.mark.asyncio
-    async def test_source_without_passwordless_sudo_yields_validation_error(self) -> None:
-        """E101 — the source needs passwordless sudo too: the orchestrator pauses snapd
-        auto-refresh via `sudo snap set system refresh.hold` on the source as well (decision 4).
+    async def test_the_source_grant_is_left_to_the_run_that_declared_the_pause(self) -> None:
+        """E126 — the source's `snap` grant is the auto-refresh pause's, not this job's: it is
+        probed once for the run from the declaration, so a `folder_sync`-only run gets it too.
+        Checking it here as well would report one grant twice.
         """
-        context, _source, _target = make_context(
+        context, source, _target = make_context(
             source_responses={"sudo --non-interactive true": CommandResult(1, "", "sudo: a password is required")}
         )
         job = SnapSyncJob(context)
 
         errors = await job.validate()
 
-        assert any(e.host is Host.SOURCE and "sudo" in e.message for e in errors)
+        assert not any(e.host is Host.SOURCE and "sudo" in e.message for e in errors)
+        assert "sudo --non-interactive true" not in all_calls(source)
 
     @pytest.mark.asyncio
     async def test_valid_environment_yields_no_errors(self) -> None:

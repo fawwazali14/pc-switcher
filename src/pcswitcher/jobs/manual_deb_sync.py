@@ -404,6 +404,11 @@ class ManualDebSyncJob(UnreproducibleSyncJob):
         refuse the job to every user who only ever installs. A removal that lacks the
         privilege fails as a per-item converge failure (`PKG-FR-OUTCOME-FAILED`), reported like any other.
 
+        The apt-timer pause this job declares (`declare_run_pauses`) is a different matter: its
+        commands are the orchestrator's, known in advance and run on both machines whatever the
+        review decides, so its grant IS established up front — once for the run, from the
+        declaration, not here.
+
         Sequential checks appending to `errors`, never raising mid-validate (matches
         `AptSyncJob.validate()`'s shape).
         """

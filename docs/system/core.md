@@ -202,7 +202,7 @@ Lineage: 001-core edge cases, 003-core-tests edge cases
 - **CORE-FR-JOB-DISPLAY-NAME** `[Frictionless Command UX]`: Everything a human reads — the step label, the progress bars, the `Job outcomes:` block, the first-sync warning, the failure summary and the job-lifecycle log messages — MUST name a job by its `display_name`, which defaults to `name` when a job declares none. Everything a machine matches on — the `sync_jobs` key, the module path, the `job` field of a log record, `ConfigError.job`, `ValidationError.job`, the `active_job` trace label — MUST keep `name`, so improving the wording never invalidates a config or a log query  
   Lineage: 02-UAT-02
 
-- **CORE-FR-LIFECYCLE** `[Reliability Without Compromise]`: The orchestrator MUST call `validate_config()` for every enabled job, then `validate()` for every job that passed, then `execute()` one job at a time in config order  
+- **CORE-FR-LIFECYCLE** `[Reliability Without Compromise]`: The orchestrator MUST call `validate_config()` for every enabled job, then `validate()` for every job that passed and its own run-level checks over what those jobs declared, then `execute()` one job at a time in config order  
   Lineage: 001-FR-002
 
 - **CORE-FR-TERM-CTRLC** `[Reliability Without Compromise]`: Ctrl+C MUST cancel the sync task so the running job receives `CancelledError` and the orchestrator's `finally` block runs cleanup; a second SIGINT MUST cancel every task immediately without waiting for cleanup  
