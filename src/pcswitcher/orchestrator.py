@@ -56,6 +56,7 @@ from pcswitcher.models import (
     JobSkipped,
     JobStatus,
     LogLevel,
+    RunPause,
     SessionStatus,
     SnapshotPhase,
     SyncAborted,
@@ -996,6 +997,30 @@ class Orchestrator:
                 scopes.append(scope)
         return scopes
 
+    def _required_run_pauses(self) -> frozenset[RunPause]:
+        """Union the machine-wide pauses every ENABLED sync job declares it needs (#292).
+
+        Resolved exactly as `_first_sync_scopes` does — by class, before job discovery,
+        because both pauses are applied before the job window opens. The orchestrator asks
+        the jobs rather than naming them, so which mechanism a job depends on is stated by
+        that job and a job added later cannot silently miss one (`SyncJob.declare_run_pauses`).
+
+        The union is the whole rule: a pause is held when ANY enabled job asks for it. That
+        is what a hard-coded gate on one job's flag got wrong — `folder_sync` depends on snap
+        revisions standing still whether or not `snap_sync` is enabled, and the three jobs
+        that replay `dpkg`/`apt-get` contend for the frontend lock whether or not `apt_sync`
+        is.
+        """
+        pauses: set[RunPause] = set()
+        for job_name, enabled in self._config.sync_jobs.items():
+            if not enabled:
+                continue
+            job_class = self._resolve_sync_job_class(job_name)
+            if job_class is None:
+                continue
+            pauses |= job_class.declare_run_pauses()
+        return frozenset(pauses)
+
     @staticmethod
     def _dry_run_preview_hint(tgt: str) -> str:
         """Job-agnostic dry-run guidance shared by the first-sync and out-of-order warnings.
@@ -1760,7 +1785,8 @@ class Orchestrator:
     async def _hold_snap_autorefresh(self) -> None:
         """Pause snapd AUTOMATIC refreshes on both hosts for the sync window (decision 4).
 
-        Gated on `sync_jobs.snap_sync` being enabled and skipped in dry-run (writing
+        Held when any enabled job declares `RunPause.SNAPD_AUTOREFRESH`
+        (`_required_run_pauses`) and skipped in dry-run (writing
         `refresh.hold` is a system mutation; ADR-014). Captures each host's prior
         `refresh.hold` first so `_cleanup` can restore it exactly, marks the hold engaged,
         then applies a timed hold on each host WHOSE PRIOR POLICY IT COULD READ. Only touches
@@ -1774,7 +1800,7 @@ class Orchestrator:
         cost is running unpaused on that host, which risks a mid-run auto-refresh; that trade
         is the criterion's, and it is the same one `_restore_snap_hold` makes on the way out.
         """
-        if self._dry_run or not self._config.sync_jobs.get("snap_sync", False):
+        if self._dry_run or RunPause.SNAPD_AUTOREFRESH not in self._required_run_pauses():
             return
 
         self._snap_hold_prior_source, self._snap_hold_readable_source = await self._capture_snap_hold(Host.SOURCE)
@@ -2129,7 +2155,8 @@ class Orchestrator:
     async def _suspend_apt_timers(self) -> None:
         """Stop Ubuntu's own apt update timers on both hosts for the sync window (#248).
 
-        Gated on `sync_jobs.apt_sync` being enabled and skipped in dry-run (stopping a system
+        Held when any enabled job declares `RunPause.APT_UPDATE_TIMERS`
+        (`_required_run_pauses`) and skipped in dry-run (stopping a system
         timer is a system mutation; ADR-014). Defers any restore a dead run left pending
         first (`_defer_pending_apt_timer_restore`), then captures each host's timer state so
         `_cleanup` can put back exactly what was taken away, then suspends each host WHOSE
@@ -2145,7 +2172,7 @@ class Orchestrator:
         running unguarded on that host; the alternative is disabling a machine's security
         updates with no record of what it had.
         """
-        if self._dry_run or not self._config.sync_jobs.get("apt_sync", False):
+        if self._dry_run or RunPause.APT_UPDATE_TIMERS not in self._required_run_pauses():
             return
 
         # Push a dead run's pending restore past this sync, so it cannot fire inside it. The

@@ -34,6 +34,7 @@ from pcswitcher.models import (
     JobSkipped,
     LogLevel,
     ProgressUpdate,
+    RunPause,
     ValidationError,
 )
 from pcswitcher.sudoers import passwordless_sudo_hint
@@ -310,6 +311,21 @@ class FolderSyncJob(SyncJob):
             scope_items=paths,
             mechanism="rsync --delete",
         )
+
+    @classmethod
+    @override
+    def declare_run_pauses(cls) -> frozenset[RunPause]:
+        """This job's snap data boundary rests on revisions holding still, whatever else ran.
+
+        `~/snap/<app>/<revision>` is mirrored only for revisions the TARGET holds, and that
+        set is read once per run (`target_snap_revisions`) while the source's `~/snap` is
+        re-walked on every pass. An auto-refresh moving either machine mid-run therefore
+        mirrors a directory against the wrong revision. Deliberately not conditional on
+        `snap_sync` being enabled, for the same reason the exclusion group itself is not:
+        the boundary follows what the target's snapd holds, not whether the job that
+        converges it ran.
+        """
+        return frozenset({RunPause.SNAPD_AUTOREFRESH})
 
     async def validate(self) -> list[ValidationError]:
         """Validate system state before executing the folder sync.

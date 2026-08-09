@@ -55,7 +55,7 @@ from pcswitcher.jobs.packages.review import (
 )
 from pcswitcher.jobs.packages.state import DecisionEntry, SnippetRegistry
 from pcswitcher.jobs.packages.unreproducible import UnreproducibleItem, UnreproducibleSyncJob, lines_of
-from pcswitcher.models import FirstSyncScope, Host, ValidationError
+from pcswitcher.models import FirstSyncScope, Host, RunPause, ValidationError
 
 __all__ = ["ManualDebSyncJob"]
 
@@ -460,3 +460,10 @@ class ManualDebSyncJob(UnreproducibleSyncJob):
             ],
             mechanism="replay install snippet or remove, per item, after review",
         )
+
+    @classmethod
+    @override
+    def declare_run_pauses(cls) -> frozenset[RunPause]:
+        """Its snippets install `.deb` files, and its removals run apt — both take the dpkg
+        frontend lock Ubuntu's own updater takes, whether or not `apt_sync` is enabled."""
+        return frozenset({RunPause.APT_UPDATE_TIMERS})

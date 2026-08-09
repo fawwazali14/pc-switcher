@@ -35,7 +35,7 @@ from pcswitcher.executor import Executor
 from pcswitcher.jobs.packages.probes import ProbeFailed, require_answer
 from pcswitcher.jobs.packages.state import DecisionEntry, SnippetRegistry
 from pcswitcher.jobs.packages.unreproducible import UnreproducibleItem, UnreproducibleSyncJob, lines_of
-from pcswitcher.models import FirstSyncScope, Host, ValidationError
+from pcswitcher.models import FirstSyncScope, Host, RunPause, ValidationError
 
 __all__ = ["ManualInstallsSyncJob"]
 
@@ -550,3 +550,11 @@ class ManualInstallsSyncJob(UnreproducibleSyncJob):
             ],
             mechanism="replay install snippet or delete the path, per item, after review",
         )
+
+    @classmethod
+    @override
+    def declare_run_pauses(cls) -> frozenset[RunPause]:
+        """A hand-authored install snippet is free to call `apt-get` or `dpkg` — the
+        authoring screen suggests exactly that — so it contends for the dpkg frontend lock
+        Ubuntu's own updater takes, whether or not `apt_sync` is enabled."""
+        return frozenset({RunPause.APT_UPDATE_TIMERS})

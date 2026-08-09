@@ -187,7 +187,7 @@ pc-switcher sync pc2 --yes --allow-first-sync
 
 A dry run converges nothing, so three things below cannot happen in it: no snippet is recorded, no registry is pushed, and the converge loop of §3.7 never opens — `_converge_one` (`jobs/packages/sync_core.py`) is not called at all. Walk the dry run for the screens, then answer the real run for the outcomes.
 
-Every finding raised from an earlier walk of these fixtures is fixed — review copy and titles (#276), the two panels and the per-file follow-up of §3.3 (#277), the follow-up's keys and default (#278), the repeated scrollback frames (#279), the job names below (#280), the snippet screens of §3.4, §3.5 and §3.7 (#281), the registry's two entry types (#282), the group order of §3.2 (#283), the heading each screen opens on and the blank line before every question (#287), the progress bars below (#288), the job tag on a job's closing log line (#289) and this runbook's own order (#290). None of them is still an open defect to observe: this runbook says what to expect instead, and seeing the old behaviour is a regression.
+Every finding raised from an earlier walk of these fixtures is fixed — review copy and titles (#276), the two panels and the per-file follow-up of §3.3 (#277), the follow-up's keys and default (#278), the repeated scrollback frames (#279), the job names below (#280), the snippet screens of §3.4, §3.5 and §3.7 (#281), the registry's two entry types (#282), the group order of §3.2 (#283), the heading each screen opens on and the blank line before every question (#287), the progress bars below (#288), the job tag on a job's closing log line (#289), this runbook's own order (#290) and the two pause messages of §3.8 (#292). None of them is still an open defect to observe: this runbook says what to expect instead, and seeing the old behaviour is a regression.
 
 The status line, the progress bars and the outcome block name jobs the way a user would (#280 is fixed): `Apt packages`, `Snaps`, `Flatpaks`, `Manual debs`, `Sideloaded snaps`, `Manual flatpaks`, `Manually installed apps`, `Folder sync`, `Install on target`. A module name such as `manual_deb_sync` on screen is a regression. Config keys and the `job` field in the log file stay the module name, so §4's log greps are unaffected.
 
@@ -393,7 +393,7 @@ systemctl is-active apt-daily.timer apt-daily-upgrade.timer
 ssh testuser@"$PC2" 'systemctl is-active apt-daily.timer apt-daily-upgrade.timer'
 ```
 
-Both machines must read exactly as they did before the run started. To see the suspension itself, run the sync again with `--confirm-each-command` and watch for the `systemctl stop` on each machine and the `systemd-run` that schedules the restart; or read them out of the log afterwards:
+Both machines must read exactly as they did before the run started. The pause no longer follows `apt_sync` alone: `manual_deb_sync` and `manual_installs_sync` ask for it too, so a run with `apt_sync: false` and either of those on must still show it. The snapd pause is asked for by `snap_sync` and `folder_sync`, and by neither `manual_snap_sync` nor anything else. To see the suspension itself, run the sync again with `--confirm-each-command` and watch for the `systemctl stop` on each machine and the `systemd-run` that schedules the restart; or read them out of the log afterwards:
 
 ```bash
 LOG=$(ls -t ~/.local/share/pc-switcher/logs/sync-*.log | head -1)

@@ -77,7 +77,7 @@ from pcswitcher.jobs.packages.sync_core import (
     PackagePlan,
     PackageSyncJob,
 )
-from pcswitcher.models import CommandResult, FirstSyncScope, Host, LogLevel, ValidationError
+from pcswitcher.models import CommandResult, FirstSyncScope, Host, LogLevel, RunPause, ValidationError
 from pcswitcher.sudoers import passwordless_sudo_hint
 
 if TYPE_CHECKING:
@@ -748,3 +748,14 @@ class SnapSyncJob(PackageSyncJob):
             scope_items=["installed snaps (name, channel, revision)"],
             mechanism="snap install/refresh/remove per item, after review",
         )
+
+    @classmethod
+    @override
+    def declare_run_pauses(cls) -> frozenset[RunPause]:
+        """The store's auto-refresh must stand still while this job converges revisions.
+
+        snapd auto-refreshes ~4x/day even for closed apps, and this job's whole subject is
+        which revision each snap is on: a refresh landing between the plan and the apply
+        moves the target off the revision just converged to.
+        """
+        return frozenset({RunPause.SNAPD_AUTOREFRESH})

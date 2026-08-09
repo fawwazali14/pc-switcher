@@ -70,7 +70,15 @@ from pcswitcher.jobs.packages.review import (
 )
 from pcswitcher.jobs.packages.state import DecisionEntry, filter_inert, marks_on_either
 from pcswitcher.jobs.packages.sync_core import ConvergeItemFailed, PackagePlan, PackageSyncJob
-from pcswitcher.models import CommandResult, FirstSyncScope, Host, LogLevel, SyncAborted, ValidationError
+from pcswitcher.models import (
+    CommandResult,
+    FirstSyncScope,
+    Host,
+    LogLevel,
+    RunPause,
+    SyncAborted,
+    ValidationError,
+)
 from pcswitcher.sudoers import passwordless_sudo_hint
 
 
@@ -1216,3 +1224,14 @@ class AptSyncJob(PackageSyncJob):
             scope_items=["apt packages (manually-installed set)"],
             mechanism="apt-get install/remove per item, after review",
         )
+
+    @classmethod
+    @override
+    def declare_run_pauses(cls) -> frozenset[RunPause]:
+        """Ubuntu's own updater takes the dpkg frontend lock this job converges under.
+
+        `validate()` can only refuse a run whose lock is ALREADY held
+        (`PKG-FR-APT-DPKG-LOCK`); it cannot stop `apt-daily-upgrade.timer` from firing
+        halfway through the apply.
+        """
+        return frozenset({RunPause.APT_UPDATE_TIMERS})

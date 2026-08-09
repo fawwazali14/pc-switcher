@@ -213,6 +213,20 @@ class FirstSyncScope:
     mechanism: str
 
 
+class RunPause(StrEnum):
+    """A machine-wide automatic updater a job needs held still for the whole run.
+
+    Both are the same shape of problem: a background updater on either machine can move
+    package state under a job that is mid-convergence, and neither job can stop one that
+    starts after its own validation. The orchestrator holds them across the job window and
+    puts them back, but only where something enabled this run actually needs it — jobs
+    declare their own need via `SyncJob.declare_run_pauses()`.
+    """
+
+    SNAPD_AUTOREFRESH = "snapd_autorefresh"
+    APT_UPDATE_TIMERS = "apt_update_timers"
+
+
 class SnapshotPhase(StrEnum):
     """Phase in sync workflow when snapshot is created."""
 

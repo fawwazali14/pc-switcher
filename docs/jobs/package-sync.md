@@ -165,7 +165,7 @@ Each enabled job needs passwordless sudo where it writes:
 
 The `manual_*` jobs pre-validate no sudo: detection only reads. An approved removal on any of the first three needs root on the target and fails as its own item if that is not available. Snippet privilege is the author's — put `sudo` inside the snippet if needed.
 
-`apt_sync` and `snap_sync` also pause each machine's auto-update timers (apt) and auto-refresh (snapd) for the sync window, and restore them afterwards. The pauses expire on their own if the run dies.
+A run also pauses each machine's automatic updaters for the sync window and restores them afterwards, so nothing moves package state under a job mid-convergence. Each pause is held only where a job that is enabled needs it: snapd's auto-refresh for `snap_sync` and `folder_sync`, the apt update timers for `apt_sync`, `manual_deb_sync` and `manual_installs_sync`. The pauses expire on their own if the run dies.
 
 ## Auditing every command
 

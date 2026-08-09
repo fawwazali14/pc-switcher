@@ -328,7 +328,7 @@ sequenceDiagram
     Orchestrator->>Connection: 8 Install/upgrade pc-switcher on target
     Orchestrator->>Connection: 9 Sync config.yaml to target
 
-    Orchestrator->>Orchestrator: Pause snapd auto-refresh (if snap_sync enabled)
+    Orchestrator->>Orchestrator: Pause the updaters the enabled jobs declare (snapd auto-refresh, apt timers)
     loop 10 For each enabled sync job
         Orchestrator->>Jobs: execute() under active_job(name)
         Jobs->>EventBus: ProgressEvent

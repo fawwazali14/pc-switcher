@@ -130,7 +130,8 @@ TARGET_MACHINE = "Nomad"
 
 def make_orchestrator(  # noqa: PLR0913 - test builder knobs; all keyword-only
     *,
-    snap_sync_enabled: bool,
+    snap_sync_enabled: bool = False,
+    sync_jobs: dict[str, bool] | None = None,
     dry_run: bool = False,
     source_responses: dict[str, CommandResult] | None = None,
     target_responses: dict[str, CommandResult] | None = None,
@@ -138,7 +139,9 @@ def make_orchestrator(  # noqa: PLR0913 - test builder knobs; all keyword-only
     target_executor: MagicMock | None = None,
 ) -> tuple[Orchestrator, MagicMock, MagicMock]:
     config = MagicMock(spec=Configuration)
-    config.sync_jobs = {"snap_sync": snap_sync_enabled}
+    # `sync_jobs` is for the cases about WHICH jobs ask for the pause; the bool is the
+    # shorthand every other case uses, since snap_sync is one of the jobs that asks.
+    config.sync_jobs = sync_jobs if sync_jobs is not None else {"snap_sync": snap_sync_enabled}
     orchestrator = Orchestrator(target=TARGET_MACHINE, config=config, dry_run=dry_run)
     orchestrator._source_hostname = SOURCE_MACHINE  # pyright: ignore[reportPrivateUsage]
     orchestrator._logger = MagicMock()  # pyright: ignore[reportPrivateUsage]
@@ -193,6 +196,39 @@ class TestHoldEngaged:
     async def test_hold_skipped_in_dry_run(self) -> None:
         """E91 — nothing is suspended in a dry run."""
         orchestrator, source, target = make_orchestrator(snap_sync_enabled=True, dry_run=True)
+
+        await orchestrator._hold_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
+
+        assert not any("refresh.hold" in c for c in all_calls(source))
+        assert not any("refresh.hold" in c for c in all_calls(target))
+        assert orchestrator._snap_hold_engaged is False  # pyright: ignore[reportPrivateUsage]
+
+
+class TestTheJobsDecideWhoNeedsIt:
+    """#292 — the pause is held for the union of what the ENABLED jobs declare, not for one
+    job's flag: `SnapSyncJob` and `FolderSyncJob` both ask for it, `ManualSnapSyncJob` does not.
+    """
+
+    @pytest.mark.asyncio
+    async def test_folder_sync_alone_still_pauses_both_machines(self) -> None:
+        """E124 — `folder_sync` mirrors `~/snap/<app>/<revision>` against a target revision
+        set it reads once, so it needs revisions to stand still whether or not `snap_sync`
+        converged them this run.
+        """
+        orchestrator, source, target = make_orchestrator(sync_jobs={"folder_sync": True, "snap_sync": False})
+
+        await orchestrator._hold_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
+
+        for ex in (source, target):
+            assert any("snap set system refresh.hold=" in c for c in all_calls(ex))
+        assert orchestrator._snap_hold_engaged is True  # pyright: ignore[reportPrivateUsage]
+
+    @pytest.mark.asyncio
+    async def test_manual_snap_sync_alone_pauses_nothing(self) -> None:
+        """E125 — a sideload carries an `x`-revision no store auto-refresh can move, so that
+        job has nothing to protect and must not impose a pause on either machine.
+        """
+        orchestrator, source, target = make_orchestrator(sync_jobs={"manual_snap_sync": True})
 
         await orchestrator._hold_snap_autorefresh()  # pyright: ignore[reportPrivateUsage]
 

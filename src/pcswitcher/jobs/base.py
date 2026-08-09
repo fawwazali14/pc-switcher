@@ -9,7 +9,15 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import jsonschema
 
 from pcswitcher.events import ProgressEvent
-from pcswitcher.models import ConfigError, FirstSyncScope, Host, LogLevel, ProgressUpdate, ValidationError
+from pcswitcher.models import (
+    ConfigError,
+    FirstSyncScope,
+    Host,
+    LogLevel,
+    ProgressUpdate,
+    RunPause,
+    ValidationError,
+)
 
 from .context import JobContext
 
@@ -239,6 +247,28 @@ class SyncJob(Job):
             default) or has nothing in scope for the given config.
         """
         return None
+
+    @classmethod
+    def declare_run_pauses(cls) -> frozenset[RunPause]:
+        """Declare the machine-wide automatic updaters this job needs held for the run.
+
+        The orchestrator unions the declarations of the ENABLED jobs and holds exactly
+        that set, on the same principle as `describe_first_sync_scope`: it composes from
+        job self-descriptions rather than reaching into specific jobs' names or config, so
+        a job added later cannot silently miss a pause it depends on. The union is what
+        makes each declaration independent — two jobs naming the same pause hold it once,
+        and one of them being switched off does not lift it for the other.
+
+        Called as a classmethod before job instances exist: the pauses are applied before
+        the job window opens. Takes no config, unlike `describe_first_sync_scope`, because
+        a job's exposure to a background updater is a property of what the job does at all,
+        not of how it is configured.
+
+        Returns:
+            The pauses this job depends on; empty (the default) for a job that does not
+            care whether either updater runs during the sync.
+        """
+        return frozenset()
 
 
 class BackgroundJob(Job):
