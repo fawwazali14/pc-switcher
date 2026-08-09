@@ -810,6 +810,11 @@ class PackageSyncJob(SyncJob):
         were unreproducible items never has any INSTALL/CHANGE/REMOVE work to do, and
         must still fail if one of them ended up unresolved.
 
+        One failure, one record. The per-item line is the only place a failure's own text is
+        written; `PackageItemFailures` carries the count and every failed item's NAME, which
+        is what the orchestrator prints as this job's ending. The counts above say how many
+        changes landed, not which failed (#293).
+
         `ConvergeItemDeclined` is the third outcome: the item is neither applied nor
         failed, because the user withdrew it after the review (`PKG-FR-ASK-AGAIN`). It is
         named in its own summary line so the run says what happened to it, and it never
@@ -909,12 +914,12 @@ class PackageSyncJob(SyncJob):
 
         all_failures = [*failures, *self._unresolved_as_failures(plan, outcome)]
         if all_failures:
-            summary = "; ".join(f"{diff.label}: {stderr.strip()}" for diff, stderr in all_failures)
-            self._log(
-                LogLevel.INFO,
-                f"{counted(len(all_failures), self.item_noun, self.item_noun_plural)} failed: {summary}",
-                host=Host.TARGET,
-            )
+            # No summary line of the failures' own text here. Each one is already a record of
+            # its own above (`_converge_one`), naming the item and carrying the machine's
+            # words, and `PackageItemFailures` — raised on the next line and rendered by the
+            # orchestrator as this job's ending — is the count that names every one of them
+            # (`PKG-FR-OUTCOME-FAILED`). A line between the two re-rendered the same stderr a
+            # second time (#293).
             raise PackageItemFailures(self.item_noun, self.item_noun_plural, all_failures)
 
     def _log_decisions(self, plan: PackagePlan, decisions: Mapping[str, Decision]) -> None:

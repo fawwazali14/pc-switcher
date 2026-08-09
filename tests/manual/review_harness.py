@@ -20,6 +20,8 @@ from pcswitcher.jobs.packages.review import (
     REPO_CONFLICT_REVIEW_ACTION,
     REPO_REMOVAL_REVIEW_ACTION,
     SNIPPET_OWNERSHIP_REVIEW_ACTION,
+    UNREPRODUCIBLE_FAILED_REVIEW_ACTION,
+    UNREPRODUCIBLE_RETRY_REVIEW_ACTION,
     UNREPRODUCIBLE_REVIEW_ACTION,
     UNREPRODUCIBLE_UPDATE_REVIEW_ACTION,
     ReviewEntry,
@@ -268,6 +270,54 @@ GROUPS = [
                 "sudo DEBIAN_FRONTEND=noninteractive dpkg --install /var/tmp/pcsw-uat-drift_2.0_all.deb"
             )
         },
+    ),
+    # The two screens the converge loop puts AFTER a body has run, which no other rehearsal
+    # reaches: a real run only gets here through a replay that did not do what it said.
+    # Together they are the pair whose titles have to read consistently — each names what
+    # that body DID on the target rather than what it would do (#293, #294).
+    ReviewGroup(
+        "manual_deb",
+        UNREPRODUCIBLE_RETRY_REVIEW_ACTION,
+        f"pcsw-uat-drift on {TARGET_HOST} is still 1.0, not 2.0",
+        [
+            ReviewEntry(
+                "unreproducible:apt-no-candidate:pcsw-uat-drift",
+                "pcsw-uat-drift (2.0)",
+                "update",
+                f"{SOURCE_HOST} has 2.0, {TARGET_HOST} has 1.0",
+            )
+        ],
+        item_noun="manual deb",
+        recorded_bodies={
+            "unreproducible:apt-no-candidate:pcsw-uat-drift": SnippetBodies(
+                install_body="sudo DEBIAN_FRONTEND=noninteractive dpkg --install /var/tmp/pcsw-uat-drift_2.0_all.deb"
+            )
+        },
+        evidence_title=f"Recorded snippet — didn't install 2.0 on {TARGET_HOST}",
+    ),
+    # The failure screen: the item's own question and its own three answers, over a body the
+    # target refused. The row carries what the machine said, which is the whole ground for
+    # choosing between correcting the body and dropping it.
+    ReviewGroup(
+        "manual_snap",
+        UNREPRODUCIBLE_FAILED_REVIEW_ACTION,
+        f"Install sideloaded snap pcsw-uat-snap on {TARGET_HOST}?",
+        [
+            ReviewEntry(
+                "unreproducible:snap-sideload:pcsw-uat-snap",
+                "pcsw-uat-snap",
+                "install",
+                "error: cannot read snap info for /var/tmp/pcsw-uat-snap: invalid base name: "
+                'invalid snap name: "core24x"',
+            )
+        ],
+        item_noun="sideloaded snap",
+        recorded_bodies={
+            "unreproducible:snap-sideload:pcsw-uat-snap": SnippetBodies(
+                install_body="sudo snap try --devmode /var/tmp/pcsw-uat-snap"
+            )
+        },
+        evidence_title=f"Recorded snippet — failed on {TARGET_HOST}",
     ),
     # The registry's own question, and the third screen that prints a body it did not just
     # capture. Rehearsed because the guidance it prints after "I did" is long enough to be

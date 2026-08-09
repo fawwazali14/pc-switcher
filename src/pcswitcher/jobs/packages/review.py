@@ -169,6 +169,7 @@ __all__ = [
     "REPO_CONFLICT_REVIEW_ACTION",
     "REPO_REMOVAL_REVIEW_ACTION",
     "SNIPPET_OWNERSHIP_REVIEW_ACTION",
+    "UNREPRODUCIBLE_FAILED_REVIEW_ACTION",
     "UNREPRODUCIBLE_RETRY_REVIEW_ACTION",
     "UNREPRODUCIBLE_REVIEW_ACTION",
     "UNREPRODUCIBLE_UPDATE_REVIEW_ACTION",
@@ -256,10 +257,20 @@ UNREPRODUCIBLE_UPDATE_REVIEW_ACTION = "unreproducible_update"
 # again is the same no-op, and offering it would invite a loop the user cannot win.
 UNREPRODUCIBLE_RETRY_REVIEW_ACTION = "unreproducible_retry"
 
-# The three actions whose answer is an authored shell body rather than a decision. Together
+# The menu the converge loop puts after a replay that EXITED NON-ZERO
+# (`PKG-FR-MANUAL-FAIL-ITEM`): the item's own question again, with its three answers
+# reworded for a body that has already run and failed. Distinct from the retry sentinel
+# above because the two describe different facts — a body that ran and moved nothing is not
+# a body the target refused — and because this one keeps the permanent answer: the failure
+# is as good a moment as any to decide the software is the source's own.
+UNREPRODUCIBLE_FAILED_REVIEW_ACTION = "unreproducible_failed"
+
+# The actions whose answer is an authored shell body rather than a decision. Together
 # they are what `policy_decision` refuses to answer from the command line and what a run
 # with no terminal reports as unresolved — an editor is not something a flag can drive.
-_AUTHORING_ACTIONS = frozenset({UNREPRODUCIBLE_REVIEW_ACTION, UNREPRODUCIBLE_RETRY_REVIEW_ACTION})
+_AUTHORING_ACTIONS = frozenset(
+    {UNREPRODUCIBLE_REVIEW_ACTION, UNREPRODUCIBLE_RETRY_REVIEW_ACTION, UNREPRODUCIBLE_FAILED_REVIEW_ACTION}
+)
 
 # Sentinel `ReviewGroup.action` a caller (today, only `AptSyncJob`) uses to mark a group
 # of manual-collateral items (`PKG-FR-COLLATERAL-MANUAL`) as needing the three-way per-entry resolution flow
@@ -463,6 +474,11 @@ class ReviewGroup:
     (`PKG-FR-VERSION-SNIPPET`). Only the two groups whose items HAVE a recorded snippet supply it; this module
     never reads a registry itself, exactly as it never reads a repository file.
 
+    `evidence_title` heads the recorded-snippet block, for the two screens the converge loop
+    puts after that body has already RUN: what it did is the fact the answer turns on, and
+    only the caller knows it. Absent everywhere else, where the block keeps its
+    forward-looking default (`_print_recorded_snippet`).
+
     `item_noun` is the SINGULAR word for one of these entries ("manual deb"), carried only
     by the groups this module titles per item — the whole-group screens are titled once, by
     the caller. It travels on the group because the noun belongs to the job and the sentence
@@ -476,6 +492,7 @@ class ReviewGroup:
     note: str | None = None
     overwrites_authored_content: bool = False
     recorded_bodies: Mapping[str, SnippetBodies] | None = None
+    evidence_title: str | None = None
     item_noun: str = ""
 
 
@@ -714,9 +731,11 @@ def policy_decision(group: ReviewGroup, policy: ReviewPolicy) -> Decision | None
       holds, which states how the user's own apt behaves on that machine;
     - a repository conflict (`PKG-FR-REPO-CONFLICT`), which moves where software the target recorded
       machine-specific comes from;
-    - an unreproducible item still to be resolved (`PKG-FR-MANUAL-RESOLUTION`), and the narrowed menu the converge
-      loop puts after a body that changed no version (`PKG-FR-VERSION-SNIPPET`): the only answers either offers
-      are an authored shell body and a skip, and no flag can write one;
+    - an unreproducible item still to be resolved (`PKG-FR-MANUAL-RESOLUTION`), and the two
+      menus the converge loop puts after a body that changed no version
+      (`PKG-FR-VERSION-SNIPPET`) or that the target refused (`PKG-FR-MANUAL-FAIL-ITEM`): the
+      only answers any of them offers are an authored shell body and a skip, and no flag can
+      write one;
     - which of apt and the user put a package on the source (`PKG-FR-DEB-AMBIGUITY`), which
       is a fact about the past that the source's current state is precisely unable to
       settle — it is why the question exists — and whose act deletes a registry entry rather
@@ -1259,6 +1278,52 @@ def _retry_options(target_hostname: str) -> tuple[DecisionOption, ...]:
     )
 
 
+def _failed_options(source_hostname: str, target_hostname: str, verb: str) -> tuple[DecisionOption, ...]:
+    """The item's own three answers, reworded for a body the target REFUSED
+    (`PKG-FR-MANUAL-FAIL-ITEM`).
+
+    The same three the item was first offered, in the same order and on the same keys: a
+    snippet that exits non-zero is a typo in the user's own text, not a new question, so the
+    screen must not read as one. What changes is what each answer now costs — the act
+    CORRECTS a body that exists rather than writing the first one, and either skip discards
+    it, which is why both say so. Without that, "will be asked again next sync" would be a
+    half-truth: the entry would still be on record and the next run would replay the same
+    broken bytes rather than asking anything.
+
+    The permanent answer survives here, unlike on the retry screen after a body that moved no
+    version (`_retry_options`): that one is about a version, which nobody holds as a standing
+    preference, while this one is about the software, which is exactly what a machine-specific
+    mark is for.
+    """
+    return (
+        DecisionOption(
+            value=_ADD_SNIPPET_VALUE,
+            key=_APPLY_KEY,
+            word=verb,
+            glyph=_ADD_SNIPPET_GLYPH,
+            is_act=True,
+            hint=f"correct the snippet that {verb}s it; {target_hostname} runs it",
+        ),
+        DecisionOption(
+            value=Decision.SKIP_ONCE,
+            key=_SKIP_NOW_KEY,
+            word=SKIP_NOW_WORD,
+            glyph=_SKIP_ONCE_GLYPH,
+            hint=f"do not {verb} on {target_hostname} for now; will be asked again next sync; "
+            "the body that failed is dropped",
+        ),
+        DecisionOption(
+            value=Decision.SKIP_ALWAYS,
+            key=_SKIP_ALWAYS_KEY,
+            word=f"never {verb}",
+            glyph=_SKIP_ALWAYS_GLYPH,
+            is_permanent=True,
+            hint=f"do not {verb} on {target_hostname} for good; it is {source_hostname}'s own; "
+            "the body that failed is dropped",
+        ),
+    )
+
+
 async def _ask_about_one_item(  # noqa: PLR0913 - one decision screen's content; all but the entry keyword-only
     entry: ReviewEntry,
     *,
@@ -1412,7 +1477,7 @@ async def _capture_bodies(
     return VersionedSnippetBodies(install_body=install_body, version_body=version_body)
 
 
-def _print_recorded_snippet(recorded: SnippetBodies | None, *, console: Console, target_hostname: str) -> None:
+def _print_recorded_snippet(recorded: SnippetBodies | None, *, console: Console, title: str) -> None:
     """Print the install body already on record for this item, above the question about it.
 
     The answer is whether that body is still the right one — replay it, rewrite it first, or
@@ -1432,16 +1497,22 @@ def _print_recorded_snippet(recorded: SnippetBodies | None, *, console: Console,
 
     No blank line of its own: the heading naming the item prints one and stands directly
     above this, and the question below gets its own from `_ask`.
+
+    `title` is the caller's, because the same block appears before three different questions
+    and the tense is not the same on all three. A screen asking whether to run this body says
+    it WOULD run; the two the converge loop puts after it has already run say what it did —
+    that it moved no version, or that the machine refused it. One shared forward-looking title
+    stated the wrong tense and the wrong fact on both of the latter.
     """
     if recorded is None:
         return
-    console.print(
-        Panel(
-            _file_body(recorded.install_body),
-            title=Text(f"Recorded snippet — would run on {target_hostname}"),
-            border_style="cyan",
-        )
-    )
+    console.print(Panel(_file_body(recorded.install_body), title=Text(title), border_style="cyan"))
+
+
+def _would_run_title(target_hostname: str) -> str:
+    """The recorded-snippet block's title before the body has run: the default every screen
+    but the converge loop's two takes."""
+    return f"Recorded snippet — would run on {target_hostname}"
 
 
 async def _review_snippet_group(  # noqa: PLR0913 - screen content plus the two dicts it fills; all but the group keyword-only
@@ -1465,8 +1536,12 @@ async def _review_snippet_group(  # noqa: PLR0913 - screen content plus the two 
       leave the version alone this run. No permanent answer.
     - `UNREPRODUCIBLE_RETRY_REVIEW_ACTION`: the same two minus the act, put by the converge
       loop after a body that moved no version.
+    - `UNREPRODUCIBLE_FAILED_REVIEW_ACTION`: the item's ORIGINAL three answers, put by the
+      converge loop after a body the target refused (`PKG-FR-MANUAL-FAIL-ITEM`). The act
+      corrects the body that failed rather than writing a first one, so the editor opens on
+      it exactly as a rewrite does.
 
-    Two exits are shared by all three:
+    Two exits are shared by all four:
 
     - Ctrl-C at the screen means the user wants to stop, so `_ask_about_one_item` aborts the
       ENTIRE sync with `SyncAbortedByUser` — never a per-item skip-and-mark-unresolved.
@@ -1479,8 +1554,10 @@ async def _review_snippet_group(  # noqa: PLR0913 - screen content plus the two 
     definition.
     """
     recorded = group.recorded_bodies or {}
+    evidence_title = group.evidence_title or _would_run_title(target_hostname)
     is_update = group.action == UNREPRODUCIBLE_UPDATE_REVIEW_ACTION
     is_retry = group.action == UNREPRODUCIBLE_RETRY_REVIEW_ACTION
+    is_failed = group.action == UNREPRODUCIBLE_FAILED_REVIEW_ACTION
     for entry in group.entries:
         verb = entry.action_label
         if is_update:
@@ -1489,6 +1566,12 @@ async def _review_snippet_group(  # noqa: PLR0913 - screen content plus the two 
             default = Decision.APPLY.value
         elif is_retry:
             options = _retry_options(target_hostname)
+            title = group.title
+            default = _ADD_SNIPPET_VALUE
+        elif is_failed:
+            # The item's own question again, worded by the job that first put it — the
+            # answers are what the failure changes, not what is being asked.
+            options = _failed_options(source_hostname, target_hostname, verb)
             title = group.title
             default = _ADD_SNIPPET_VALUE
         else:
@@ -1505,7 +1588,7 @@ async def _review_snippet_group(  # noqa: PLR0913 - screen content plus the two 
             # naming the item above it would say the title's subject twice.
             if entry.item_id in recorded:
                 _print_subject(console, noun=group.item_noun, label=entry.label)
-            _print_recorded_snippet(recorded.get(entry.item_id), console=console, target_hostname=target_hostname)
+            _print_recorded_snippet(recorded.get(entry.item_id), console=console, title=evidence_title)
             selected = await _ask_about_one_item(entry, console=console, title=title, options=options, default=default)
 
             if selected in (Decision.SKIP_ALWAYS, Decision.SKIP_ONCE, Decision.APPLY):
@@ -1625,7 +1708,7 @@ async def _review_snippet_ownership_group(
     for entry in group.entries:
         package = _bare_item_name(entry.label)
         _print_subject(console, noun=group.item_noun, label=entry.label)
-        _print_recorded_snippet(recorded.get(entry.item_id), console=console, target_hostname=target_hostname)
+        _print_recorded_snippet(recorded.get(entry.item_id), console=console, title=_would_run_title(target_hostname))
         selected = await _ask_about_one_item(
             entry,
             console=console,

@@ -107,7 +107,7 @@ Decomposes [The model](../planning/package-sync-user-requirements.md#the-model) 
   Lineage: 002-package-sync
 - **PKG-FR-ASK-ABOUT-SOFTWARE**: The user MUST be asked about software, and MUST NOT be asked separately about machinery whose necessity follows from an approved package.  
   Lineage: 002-package-sync, ADR-020-D-APT-CONFIG-DERIVED
-- **PKG-FR-ASK-WHEN-NOT-DERIVABLE**: Where an answer does not follow from any approved package, the system MUST ask. Every such question is: `PKG-FR-APTCONF`, `PKG-FR-ESM-GATE`, `PKG-FR-COLLATERAL-MANUAL`, `PKG-FR-REPO-CONFLICT`, `PKG-FR-FLATPAK-REPOINT`, `PKG-FR-REPO-DELETE`, `PKG-FR-PIN-DELETE`, `PKG-FR-REGISTRY-CONSENT`, `PKG-FR-MANUAL-OPT-SHAPE`, `PKG-FR-MANUAL-RESOLUTION`, `PKG-FR-MANUAL-VERSION`, `PKG-FR-MANUAL-CONVERGE-LOOP`, `PKG-FR-MANUAL-REMOVE`, `PKG-FR-DEB-AMBIGUITY`.  
+- **PKG-FR-ASK-WHEN-NOT-DERIVABLE**: Where an answer does not follow from any approved package, the system MUST ask. Every such question is: `PKG-FR-APTCONF`, `PKG-FR-ESM-GATE`, `PKG-FR-COLLATERAL-MANUAL`, `PKG-FR-REPO-CONFLICT`, `PKG-FR-FLATPAK-REPOINT`, `PKG-FR-REPO-DELETE`, `PKG-FR-PIN-DELETE`, `PKG-FR-REGISTRY-CONSENT`, `PKG-FR-MANUAL-OPT-SHAPE`, `PKG-FR-MANUAL-RESOLUTION`, `PKG-FR-MANUAL-VERSION`, `PKG-FR-MANUAL-CONVERGE-LOOP`, `PKG-FR-MANUAL-FAIL-ITEM`, `PKG-FR-MANUAL-REMOVE`, `PKG-FR-DEB-AMBIGUITY`.  
   Lineage: 002-package-sync
 - **PKG-FR-NAME-THE-MACHINES**: Everything the user reads at a question — its title, item details, warnings, the question, its answers — MUST identify each machine by its hostname. "source" and "target" MUST NOT appear. The per-command confirmation names the machine in its heading. Log records already carry the machine as a field of their own.  
   Lineage: 002-package-sync  
@@ -463,8 +463,9 @@ Four jobs share one core: `manual_deb_sync` (origin `apt-no-candidate`), `manual
   Lineage: 002-package-sync, ADR-022-D-SUBSYSTEM-CAP  
   Impl: `state._unreadable_registry`; `_confirm_registry_overwrite`; `_deserialize_snippets`  
   Rationale: see [package-sync-rationale.md#pkg-fr-registry-consent](../adr/considerations/package-sync-rationale.md#pkg-fr-registry-consent)
-- **PKG-FR-MANUAL-FAIL-ITEM**: A snippet that has vanished between planning and replay, or whose replay fails, MUST fail as its own item naming the item, and the run MUST continue.  
-  Lineage: 002-package-sync
+- **PKG-FR-MANUAL-FAIL-ITEM**: A snippet's failure MUST cost only its own item: the run MUST continue, and every failure MUST name the item it concerns and say what the machine answered. Where the body is still on record, a replay that exits non-zero MUST show that body under a title saying it failed on the target, MUST put the item's own question again with its three answers reworded for a body that already exists — correct it, skip it for this run, or never do it here — and MUST replay whatever correction is written, repeating for as long as replays keep failing. Either skip MUST leave the item unapplied, counted as neither applied nor failed, and MUST delete the entry from both machines' registries. A run with nobody to ask MUST make exactly one attempt and MUST then leave the item unapplied with a warning, counted the same way, recording nothing and deleting nothing. A snippet that has vanished between planning and replay has no body to correct, so nothing MUST be asked about it and it MUST fail as its own item.  
+  Lineage: 002-package-sync, GitHub #293  
+  Impl: `UnreproducibleSyncJob._correct_failed_snippet`; `UNREPRODUCIBLE_FAILED_REVIEW_ACTION`
 
 ## Reporting, failure and the dry run
 

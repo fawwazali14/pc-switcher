@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Sequence
-from dataclasses import fields
+from dataclasses import fields, replace
 from io import StringIO
 from itertools import pairwise
 from typing import Any, ClassVar, TypedDict
@@ -41,6 +41,7 @@ from pcswitcher.jobs.packages.review import (
     REPO_REMOVAL_REVIEW_ACTION,
     SKIP_NOW_WORD,
     SNIPPET_OWNERSHIP_REVIEW_ACTION,
+    UNREPRODUCIBLE_FAILED_REVIEW_ACTION,
     UNREPRODUCIBLE_RETRY_REVIEW_ACTION,
     UNREPRODUCIBLE_REVIEW_ACTION,
     UNREPRODUCIBLE_UPDATE_REVIEW_ACTION,
@@ -1767,6 +1768,79 @@ class TestTheRecordedSnippetIsOnScreen:
             ("w", "new snippet", True),
             ("s", SKIP_NOW_WORD, False),
         ]
+
+    async def test_a_caller_that_knows_the_outcome_heads_the_block_with_it(self) -> None:
+        """G215 — the block over the two screens the converge loop puts says what that body
+        DID, because by then it has run; only the screen that offers to run it says it would
+        (#294)."""
+        group = replace(_update_group(), evidence_title="Recorded snippet — failed on nomad")
+
+        _call, scrollback = await self._screen(group)
+
+        assert "failed on nomad" in scrollback
+        assert "would run on nomad" not in scrollback
+
+
+def _failed_group() -> ReviewGroup:
+    """The screen the converge loop puts after the target refused a body."""
+    return ReviewGroup(
+        manager="manual_deb",
+        action=UNREPRODUCIBLE_FAILED_REVIEW_ACTION,
+        title="Install manual deb pcsw-uat-drift on nomad?",
+        item_noun="manual deb",
+        entries=(
+            ReviewEntry(
+                item_id=PACKAGE_BACKED_ID,
+                label="pcsw-uat-drift",
+                action_label="install",
+                detail="dpkg: error processing archive /tmp/pcsw-uat-drift.deb",
+            ),
+        ),
+        recorded_bodies={PACKAGE_BACKED_ID: SnippetBodies(install_body=RECORDED_BODY)},
+        evidence_title="Recorded snippet — failed on nomad",
+    )
+
+
+class TestTheScreenAfterATargetRefusesASnippet:
+    """`PKG-FR-MANUAL-FAIL-ITEM`: the body that failed, headed by the fact it failed, over
+    the item's own question and its three answers reworded for a body that already exists."""
+
+    async def test_the_body_that_failed_is_shown_under_a_title_saying_so(self) -> None:
+        """G212 — "would run on nomad" is false twice over by the time this screen appears:
+        that body HAS run, and nomad refused it."""
+        _call, scrollback = await TestTheRecordedSnippetIsOnScreen._screen(_failed_group())
+
+        assert RECORDED_BODY in scrollback
+        assert "failed on nomad" in scrollback
+        assert "would run on nomad" not in scrollback
+
+    async def test_the_three_answers_are_the_items_own_reworded(self) -> None:
+        """G212 — a snippet that failed raises no new question, so the answers keep their
+        words and their keys; what changes is that the act CORRECTS a body rather than
+        writing the first one, and that either skip discards it."""
+        call, _scrollback = await TestTheRecordedSnippetIsOnScreen._screen(_failed_group())
+
+        options = call.kwargs["options"]
+        assert [(option.key, option.word, option.is_act) for option in options] == [
+            ("y", "install", True),
+            ("s", SKIP_NOW_WORD, False),
+            ("x", "never install", False),
+        ]
+        assert options[0].hint == "correct the snippet that installs it; nomad runs it"
+        assert all("dropped" in option.hint for option in options[1:])
+        assert call.args[0] == "Install manual deb pcsw-uat-drift on nomad?"
+
+    async def test_the_machines_own_words_are_on_the_row(self) -> None:
+        """G212 — nobody can choose between correcting a body and dropping it without being
+        told what broke."""
+        call, _scrollback = await TestTheRecordedSnippetIsOnScreen._screen(_failed_group())
+
+        assert call.kwargs["rows"][0].detail == "dpkg: error processing archive /tmp/pcsw-uat-drift.deb"
+
+    async def test_no_flag_answers_it(self) -> None:
+        """G212 — the act opens an editor, which no command line can drive
+        (`PKG-FR-APPLY-FLAGS-SCOPE`)."""
+        assert policy_decision(_failed_group(), ReviewPolicy(apply_installs=True, apply_removals=True)) is None
 
 
 _QUESTION_MARKER = "<<question>>"

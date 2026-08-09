@@ -16,7 +16,7 @@ from pcswitcher.config import Configuration
 from pcswitcher.jobs.manual_snap_sync import ManualSnapSyncJob
 from pcswitcher.jobs.packages.items import DiffAction, DiffClass, ItemClass
 from pcswitcher.jobs.packages.probes import ProbeFailed
-from pcswitcher.jobs.packages.review import Decision, ReviewOutcome
+from pcswitcher.jobs.packages.review import UNREPRODUCIBLE_FAILED_REVIEW_ACTION, Decision, ReviewOutcome
 from pcswitcher.jobs.packages.sync_core import PackagePlan
 from pcswitcher.jobs.snap_sync import SnapSyncJob
 from pcswitcher.models import CommandResult, Host, ValidationError
@@ -326,6 +326,38 @@ class TestExecuteIndependentOfSnapSync:
         assert reviewer.groups_seen is not None
         replay_calls = [c.args[0] for c in target.run_command.call_args_list if c.args[0].startswith("bash -c")]
         assert len(replay_calls) == 1
+
+
+class TestASideloadSnapdRefuses:
+    """`PKG-FR-MANUAL-FAIL-ITEM` where it was first met: `snap try` refusing a body whose
+    base name was a typo. The correction path is the shared base's, and this is the job
+    reaching it."""
+
+    @pytest.mark.asyncio
+    async def test_a_refused_sideload_is_offered_for_correction_rather_than_failing_the_job(self) -> None:
+        """G220 — snapd's refusal names the item and its own words, and the run comes back
+        with the body that failed instead of ending the job on it."""
+        item_id = "unreproducible:snap-sideload:mytool"
+        refusal = 'error: cannot read snap info for /var/tmp/mytool: invalid base name: "core24x"'
+        reviewer = FakeReviewer(decisions={item_id: Decision.APPLY})
+        context, _source, _target = make_context(
+            source_responses={
+                SNAP_LIST: snap_list(sideload("mytool")),
+                "cat ~/.config/pc-switcher/package-snippets.yaml": CommandResult(0, MYTOOL_REGISTRY_YAML, ""),
+            },
+            target_responses={
+                "cat ~/.config/pc-switcher/package-snippets.yaml": CommandResult(0, MYTOOL_REGISTRY_YAML, ""),
+                "bash -c 'sudo snap install --dangerous /tmp/mytool.snap'": CommandResult(1, "", refusal),
+            },
+            reviewer=reviewer,
+        )
+
+        await ManualSnapSyncJob(context).execute()  # SUCCESS: the item is declined, not failed
+
+        assert reviewer.groups_seen is not None
+        group = reviewer.groups_seen[0]
+        assert group.action == UNREPRODUCIBLE_FAILED_REVIEW_ACTION
+        assert group.entries[0].detail == refusal
 
 
 class TestValidate:

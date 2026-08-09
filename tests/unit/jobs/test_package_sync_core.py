@@ -747,6 +747,57 @@ class TestAppliedItemsReachTheLog:
         assert not any(message.startswith("fake: install") for message in caplog.messages)
 
 
+class _FailingJob(FakeSyncJob):
+    """`FakeSyncJob` whose converge command exits non-zero — a per-item failure with the
+    machine's own words behind it."""
+
+    STDERR = "dpkg: error processing archive /tmp/i1.deb"
+
+    async def converge(self, diff: ItemDiff) -> CommandResult:
+        return CommandResult(exit_code=1, stdout="", stderr=self.STDERR)
+
+
+class TestOneFailureIsRecordedOnce:
+    """#293: the same failure used to be rendered four times over — as its own ERROR, in the
+    applied count, in a summary line of the job's own, and again in the job's ending, with the
+    verbatim stderr in most of them. One record plus a count is what a reader needs.
+
+    `PKG-FR-FAIL-NAMED` and `PKG-FR-OUTCOME-FAILED` are what survives the cut: the record
+    names the item and carries what the machine said, and the ending names every failed item
+    beside the count.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_machines_words_are_written_once(self, caplog: pytest.LogCaptureFixture) -> None:
+        """J193 — one record carries the stderr; nothing after it re-renders the same string."""
+        caplog.set_level(LogLevel.FULL.value, logger="pcswitcher.jobs.base")
+        job = _FailingJob(make_context())
+        _accept(job, (_diff("i1", DiffAction.INSTALL),), {"i1": Decision.APPLY})
+
+        with pytest.raises(PackageItemFailures):
+            await job.apply()
+
+        carrying_it = [message for message in caplog.messages if _FailingJob.STDERR in message]
+        assert carrying_it == ["i1 failed: dpkg: error processing archive /tmp/i1.deb"]
+
+    @pytest.mark.asyncio
+    async def test_the_jobs_ending_names_every_failed_item_and_counts_them(self) -> None:
+        """J193 — what the orchestrator prints as this job's ending is the count that names
+        each item (`PKG-FR-OUTCOME-FAILED`), which is why no summary line of the job's own
+        needs to."""
+        job = _FailingJob(make_context())
+        _accept(
+            job,
+            (_diff("i1", DiffAction.INSTALL), _diff("i2", DiffAction.INSTALL)),
+            {"i1": Decision.APPLY, "i2": Decision.APPLY},
+        )
+
+        with pytest.raises(PackageItemFailures) as failed:
+            await job.apply()
+
+        assert str(failed.value) == "2 fake packages failed to converge: i1, i2"
+
+
 class TestEveryLogRecordCarriesItsMachine:
     """H79 — the naming rule exempts log records from saying a hostname, and the exemption
     rests on the record carrying the machine as a field of its own. `_log` puts `host` in

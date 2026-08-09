@@ -203,7 +203,9 @@ Neither flag records a machine-specific mark, and neither writes a snippet.
 
 ## When something goes wrong
 
-Every approved item is attempted. Failures are collected and reported together, each naming its item. One failed item does not block the rest of its job; one failed job does not stop the others.
+Every approved item is attempted. Failures are collected and reported together, each naming its item, once. One failed item does not block the rest of its job; one failed job does not stop the others.
+
+A snippet the other machine refuses is the one failure you are asked about rather than told about. The body you wrote is shown under a title saying it failed there, with what the machine said beside it, and the item's own question comes again: correct the snippet and it is replayed, or skip it and the entry is dropped so the next sync asks you to write it afresh. A skipped item is neither applied nor failed, so the job still reports success. With nobody at the terminal one attempt is made and the item is left alone with a warning. A snippet that disappeared between the review and the replay has nothing to correct and fails as its own item.
 
 A read that does not answer — snapd unreachable, apt lock held on the source, a network drop — fails the job once, naming the command and the tool's own stderr. It never proposes removing everything on the other machine because one read returned nothing.
 

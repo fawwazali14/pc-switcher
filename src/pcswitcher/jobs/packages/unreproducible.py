@@ -74,6 +74,7 @@ from pcswitcher.jobs.packages.items import (
     unreproducible_id_prefix,
 )
 from pcswitcher.jobs.packages.review import (
+    UNREPRODUCIBLE_FAILED_REVIEW_ACTION,
     UNREPRODUCIBLE_RETRY_REVIEW_ACTION,
     UNREPRODUCIBLE_REVIEW_ACTION,
     UNREPRODUCIBLE_UPDATE_REVIEW_ACTION,
@@ -82,6 +83,7 @@ from pcswitcher.jobs.packages.review import (
     ReviewGroup,
     ReviewOutcome,
     change_title,
+    version_mismatch_title,
 )
 from pcswitcher.jobs.packages.state import (
     SNIPPET_REGISTRY_RELPATH,
@@ -849,11 +851,21 @@ class UnreproducibleSyncJob(PackageSyncJob):
         the replay's own exit code is all the run has, and an item whose `version_body`
         stopped answering is reported converged on that evidence rather than looped on
         forever.
+
+        A replay the target REFUSES enters the same loop through `_correct_failed_snippet`
+        (`PKG-FR-MANUAL-FAIL-ITEM`): the body is the user's own text and a non-zero exit is
+        usually a typo in it, so the failure is offered for correction before it is reported
+        as one. Only a snippet with no body left to correct — one that vanished between
+        planning and replay — comes straight back as this item's own failure.
         """
         expected = self._source_versions.get(diff.item_id)
         while True:
             result = await SnippetRegistry(self.target, self.machines.target).replay(diff.item_id, self.target)
-            if not result.success or expected is None:
+            if not result.success:
+                if await self._correct_failed_snippet(diff, result):
+                    continue
+                return result
+            if expected is None:
                 return result
             landed = (await self.installed_versions([diff.item_id], on_source=False)).get(diff.item_id)
             if landed is None or landed == expected:
@@ -919,6 +931,7 @@ class UnreproducibleSyncJob(PackageSyncJob):
                         ),
                     ),
                     recorded_bodies={diff.item_id: bodies_now},
+                    evidence_title=f"Recorded snippet — didn't install {expected} on {self.machines.target}",
                 ),
             )
         )
@@ -926,16 +939,174 @@ class UnreproducibleSyncJob(PackageSyncJob):
         if bodies is None:
             return False
 
+        await self._record_replacement(diff.item_id, recorded.label, bodies)
+        return True
+
+    async def _correct_failed_snippet(self, diff: ItemDiff, result: CommandResult) -> bool:
+        """Put the item's own question again after the target REFUSED its body, and record
+        what comes back (`PKG-FR-MANUAL-FAIL-ITEM`). True where a correction was written and
+        the loop should replay it.
+
+        The failure is one item's, never the job's: whatever this returns, the run goes on to
+        the next item. What it decides is only whether this one ends applied, corrected and
+        replayed, or withdrawn.
+
+        A snippet with nothing left on record — one that VANISHED between planning and replay
+        — returns False with nothing asked: there is no body to preload an editor with and no
+        question a user could answer, so it fails as its own item, named, exactly as the
+        article has always required.
+
+        Everything else is a body the user wrote, so a non-zero exit is a typo far more often
+        than it is a broken machine, and the editor is one keystroke away. The three answers
+        are the item's own, reworded (`review._failed_options`): correct it, skip it for this
+        run, or record it machine-specific. Either skip DROPS the entry from both registries,
+        which is what makes "will be asked again next sync" true — an entry left on record
+        would have the next run replay the same broken bytes without asking anything.
+
+        A run with nobody to ask makes the one attempt and stops there, leaving the item
+        unapplied with a warning and counted as neither applied nor failed
+        (`PKG-FR-MANUAL-CONVERGE-LOOP`'s closing sentence, `PKG-FR-NO-TERMINAL`): the only
+        remaining answers need a person to write a shell script. Nothing is dropped and no
+        mark is recorded on that path — a run nobody answered records nothing.
+        """
+        registry = SnippetRegistry(self.source, self.machines.source)
+        recorded = await registry.get(diff.item_id)
+        if recorded is None:
+            return False
+
+        # THE record of this failure: the item, and the machine's own words. `apply()` adds a
+        # count and the orchestrator names the job; nothing else re-renders this string.
+        self._log(
+            LogLevel.WARNING,
+            f"{diff.label} failed: {self._failure_reason(result)}",
+            stderr=result.stderr,
+            host=Host.TARGET,
+        )
+        if self.context.reviewer is None:
+            raise ConvergeItemDeclined("the install-or-update snippet failed and there was nobody to correct it")
+
+        verb = "update" if diff.diff_class is DiffClass.VERSION_MISMATCH else "install"
+        outcome = await self.context.reviewer.review(
+            (
+                ReviewGroup(
+                    manager=self.manager_id,
+                    action=UNREPRODUCIBLE_FAILED_REVIEW_ACTION,
+                    # The question the item was first asked, unchanged: a snippet that failed
+                    # raises no new question, and rewording it would read as one.
+                    title=(
+                        version_mismatch_title(diff.label, self.machines.source, self.machines.target)
+                        if diff.diff_class is DiffClass.VERSION_MISMATCH
+                        else change_title(verb, f"{self.item_noun} {diff.label}", self.machines.target)
+                    ),
+                    item_noun=self.item_noun,
+                    entries=(
+                        ReviewEntry(
+                            item_id=diff.item_id,
+                            label=diff.label,
+                            action_label=verb,
+                            # What the machine said, on the row: nobody can choose between
+                            # correcting a body and dropping it without knowing what broke.
+                            detail=self._failure_reason(result),
+                        ),
+                    ),
+                    recorded_bodies={diff.item_id: recorded.bodies},
+                    evidence_title=f"Recorded snippet — failed on {self.machines.target}",
+                ),
+            )
+        )
+
+        bodies = outcome.snippets.get(diff.item_id)
+        if bodies is not None:
+            await self._record_replacement(diff.item_id, recorded.label, bodies)
+            return True
+
+        # Only an answer a HUMAN gave drops an entry or records a mark (`PKG-FR-NO-TERMINAL`,
+        # `PKG-FR-APPLY-FLAGS-NO-MARK`): a run with no terminal withdraws the item and leaves
+        # both registries as they were.
+        if not outcome.was_interactive:
+            raise ConvergeItemDeclined("the install-or-update snippet failed and there was nobody to correct it")
+
+        decision = outcome.decisions.get(diff.item_id)
+        if decision is Decision.SKIP_ALWAYS:
+            await self._record_machine_specific(diff)
+            await self._drop_failed_snippet(diff)
+            raise ConvergeItemDeclined(
+                "the install-or-update snippet failed and the item is now recorded machine-specific"
+            )
+        if decision is Decision.SKIP_ONCE:
+            await self._drop_failed_snippet(diff)
+            raise ConvergeItemDeclined("the install-or-update snippet failed and the body was dropped")
+        # No body and neither skip: nothing a screen can produce, and what the automation hook
+        # leaves behind. The item is withdrawn and the registry is untouched.
+        raise ConvergeItemDeclined("the install-or-update snippet failed and was not corrected")
+
+    @staticmethod
+    def _failure_reason(result: CommandResult) -> str:
+        """What the target said about the body it refused, for the log line and the screen.
+
+        `stderr` first because that is where a package manager writes its refusal, `stdout`
+        where a hand-written body echoed its own message and wrote nothing to `stderr`, and
+        the exit code where it printed nothing at all — a screen offering to correct a snippet
+        must never be blank about why.
+        """
+        return result.stderr.strip() or result.stdout.strip() or f"exited {result.exit_code}"
+
+    async def _record_replacement(self, item_id: str, label: str, bodies: SnippetBodies) -> None:
+        """Write a corrected body to BOTH registries, before it is replayed.
+
+        Both rather than the source's alone, and before rather than after the replay, for one
+        reason each. The push is a whole-file overwrite gated on being additive
+        (`_guard_registry_overwrite`), and a source entry changed after this run's own push is
+        exactly what that gate calls a lost entry — so pushing again would put a consent
+        question in front of the user about the change they had just made. Writing the
+        identical entry on both machines leaves the two copies equal, which is what the gate
+        is there to protect. And the replay reads the TARGET's copy, so a body written only
+        afterwards would replay the one it replaces.
+        """
         snippet = snippet_from_bodies(
-            item_id=diff.item_id,
-            label=recorded.label,
+            item_id=item_id,
+            label=label,
             bodies=bodies,
             authored_at=datetime.now(UTC).isoformat(),
             authored_on=self.context.source_hostname,
         )
-        await registry.add(snippet)
+        await SnippetRegistry(self.source, self.machines.source).add(snippet)
         await SnippetRegistry(self.target, self.machines.target).add(snippet)
-        return True
+
+    async def _drop_failed_snippet(self, diff: ItemDiff) -> None:
+        """Delete the entry whose body the target refused, on both machines.
+
+        Both, for `_drop_snippets_the_package_manager_owns`'s reason: a source-only delete is
+        what `_guard_registry_overwrite` calls a lost entry, so the next push would ask the
+        user to consent to their own answer. One INFO line, because a registry entry is the
+        user's own work and does not disappear silently (`PKG-FR-LOG-DECISIONS`).
+        """
+        for machine, executor in ((self.machines.source, self.source), (self.machines.target, self.target)):
+            await SnippetRegistry(executor, machine).remove([diff.item_id])
+        self._log(
+            LogLevel.INFO,
+            f"dropped the install snippet for {diff.label}: it failed and was not corrected",
+            host=Host.SOURCE,
+        )
+
+    async def _record_machine_specific(self, diff: ItemDiff) -> None:
+        """Record the mark for a "never" answered mid-apply, on the machine that holds the
+        item (`PKG-FR-MACHINE-SPECIFIC`).
+
+        Written here rather than by `_record_permanent_skips`, which runs before the converge
+        loop and so never sees an answer the loop's own question produced (`PKG-FR-ASK-AGAIN`).
+        The recipient is the base's own `_mark_recipients`, so a mark made here lands in the
+        same file a mark made at the review would.
+        """
+        entry = DecisionEntry(
+            item_id=diff.item_id,
+            item_class=diff.item_class,
+            label=diff.label,
+            reason=None,
+            recorded_at=datetime.now(UTC).isoformat(),
+        )
+        for executor in self._mark_recipients(diff.action, None):
+            await DecisionFile(self.manager_id, executor).record(entry)
 
     # -- Unreproducible finalize hook (moved off the base, `PKG-FR-MANUAL-SCOPE`) -------------------------
 

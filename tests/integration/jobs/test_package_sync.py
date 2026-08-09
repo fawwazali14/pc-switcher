@@ -1407,10 +1407,10 @@ class TestWhatARealRemovalTakesWithIt:
 
 
 class TestAFailureCostsItsOwnItemAndNothingElse:
-    """`PKG-FR-OUTCOME-FAILED`, `PKG-FR-JOB-INDEPENDENCE` and `PKG-FR-SNAP-FAIL-ITEM` in the one run that can
-    show all three: a job that fails on its own middle item, a snap install its target's
-    snapd cannot carry out, and every item and job ordered after either still reviewing and
-    converging its own diff.
+    """`PKG-FR-OUTCOME-FAILED`, `PKG-FR-JOB-INDEPENDENCE`, `PKG-FR-MANUAL-FAIL-ITEM` and
+    `PKG-FR-SNAP-FAIL-ITEM` in the one run that can show all four: a snippet its target
+    refuses, a snap install its target's snapd cannot carry out, and every item and job
+    ordered after either still reviewing and converging its own diff.
 
     A run that FAILS is what all three need, and no converging run can be one, so this keeps
     a sync. The two defect states share it because they cannot mask each other: they are at
@@ -1447,8 +1447,8 @@ class TestAFailureCostsItsOwnItemAndNothingElse:
         pc2_with_pcswitcher: BashLoginRemoteExecutor,
         reset_pcswitcher_state: None,
     ) -> None:
-        """J20, J26, J34, H12, K20, N22, E53, J191 — All four package jobs enabled, and two
-        deliberate defects among them.
+        """J20, J26, J34, H12, K20, N22, E53, J191, G86 — All four package jobs enabled, and
+        two deliberate defects among them.
 
         `manual_installs_sync` runs first, holding three approved snippets: two that
         genuinely `apt-get install` a real package and, between them, one that exits 42.
@@ -1460,7 +1460,7 @@ class TestAFailureCostsItsOwnItemAndNothingElse:
 
         The sync's own exit code is non-zero -- the orchestrator derives it from job results,
         not from whether an exception propagated (`_summarize_job_outcomes`) -- and the
-        snippet's stderr lands in the run's own summary.
+        snippet's stderr is named once against its own item.
 
         The witnesses are pc2's own package managers, as everywhere else in this module. The
         snippet ordered AFTER the failing one installed its package, which is `PKG-FR-OUTCOME-FAILED`'s
@@ -1602,21 +1602,27 @@ class TestAFailureCostsItsOwnItemAndNothingElse:
                 f"the run did not report exactly one failed snap item.\n{sync_result.stdout}\n{sync_result.stderr}"
             )
 
-            # The end-of-run block over a run that ended three ways at once
-            # (`CORE-FR-SUMMARY`): the two failed jobs and, in the same block, the job whose
-            # approved work landed anyway. A block that named only the failures would read as
-            # "the run failed" and lose exactly what `PKG-FR-OUTCOME-FAILED` promises.
+            # The end-of-run block over a run that ended two ways at once (`CORE-FR-SUMMARY`):
+            # the failed job and, in the same block, the jobs whose approved work landed
+            # anyway. A block that named only the failure would read as "the run failed" and
+            # lose exactly what `PKG-FR-OUTCOME-FAILED` promises.
+            #
+            # `manual_installs_sync` succeeds despite its refused snippet: a body on record
+            # that exits non-zero is offered for correction, and this run has nobody to write
+            # one, so the item is left unapplied and counted as neither applied nor failed
+            # (`PKG-FR-MANUAL-FAIL-ITEM`). `snap_sync`'s failure is snapd's own refusal, which
+            # no snippet retry covers, so it is the job that ends the run non-zero.
             outcomes = job_outcome_statuses(sync_result.stdout + sync_result.stderr)
             assert (
                 outcomes.get(job_display_name("manual_installs_sync")),
                 outcomes.get(job_display_name("snap_sync")),
                 outcomes.get(job_display_name("apt_sync")),
             ) == (
-                "failed",
+                "success",
                 "failed",
                 "success",
             ), (
-                f"the outcome block does not report the two failed jobs beside the one that succeeded: {outcomes}.\n"
+                f"the outcome block does not report the failed job beside the ones that succeeded: {outcomes}.\n"
                 f"stdout: {sync_result.stdout}\nstderr: {sync_result.stderr}"
             )
             assert collapsed.count("Job outcomes:") == 1, (
